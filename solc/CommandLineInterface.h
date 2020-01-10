@@ -51,6 +51,8 @@ public:
 	bool actOnInput();
 
 private:
+	bool serveLSP();
+
 	bool link();
 	void writeLinkedFiles();
 	/// @returns the ``// <identifier> -> name`` hint for library placeholders.

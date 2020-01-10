@@ -107,11 +107,13 @@ add_subdirectory(libevmasm)
 add_subdirectory(libyul)
 add_subdirectory(libsolidity)
 add_subdirectory(libsolc)
+add_subdirectory(liblsp)
 add_subdirectory(tools)
 
 if (NOT EMSCRIPTEN)
 	add_subdirectory(solc)
 endif()
+
 
 if (TESTS AND NOT EMSCRIPTEN)
 	add_subdirectory(test)
