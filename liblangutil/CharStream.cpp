@@ -102,6 +102,29 @@ string CharStream::lineAtPosition(int _position) const
 	return line;
 }
 
+int CharStream::translateLineColumnToPosition(int _line, int _column) const // TODO: unit test case
+{
+	// TODO
+	int line = 1;
+	int column = 1;
+
+	for (size_t i = 0; i < m_source.size(); ++i)
+	{
+		if (line == _line && column == _column)
+			return int(i);
+
+		auto const ch = m_source.at(i);
+		if (ch == '\n')
+		{
+			++line;
+			column = 0;
+		}
+		++column;
+	}
+
+	return -1; // -1 indicates error (line:column pair out of bounds)
+}
+
 tuple<int, int> CharStream::translatePositionToLineColumn(int _position) const
 {
 	using size_type = string::size_type;
