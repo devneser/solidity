@@ -40,6 +40,7 @@ JSON AST (compact format):
         18
       ],
       "name": "Error1",
+      "nameLocation": "71:6:0",
       "nodeType": "ContractDefinition",
       "nodes":
       [
@@ -139,6 +140,7 @@ JSON AST (compact format):
                 "id": 12,
                 "mutability": "mutable",
                 "name": "",
+                "nameLocation": "-1:-1:18446744073709551615",
                 "nodeType": "VariableDeclaration",
                 "scope": 17,
                 "src": "434:4:0",

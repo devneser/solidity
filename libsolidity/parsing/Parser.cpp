@@ -226,6 +226,7 @@ ASTPointer<ImportDirective> Parser::parseImportDirective()
 	expectToken(Token::Import);
 	ASTPointer<ASTString> path;
 	ASTPointer<ASTString> unitAlias = make_shared<string>();
+	SourceLocation unitAliasLocation = currentLocation();
 	ImportDirective::SymbolAliasList symbolAliases;
 
 	if (m_scanner->currentToken() == Token::StringLiteral)
@@ -234,6 +235,7 @@ ASTPointer<ImportDirective> Parser::parseImportDirective()
 		if (m_scanner->currentToken() == Token::As)
 		{
 			m_scanner->next();
+			unitAliasLocation = currentLocation();
 			unitAlias = expectIdentifierToken();
 		}
 	}
@@ -264,6 +266,7 @@ ASTPointer<ImportDirective> Parser::parseImportDirective()
 		{
 			m_scanner->next();
 			expectToken(Token::As);
+			unitAliasLocation = currentLocation();
 			unitAlias = expectIdentifierToken();
 		}
 		else
@@ -281,7 +284,7 @@ ASTPointer<ImportDirective> Parser::parseImportDirective()
 		fatalParserError(6326_error, "Import path cannot be empty.");
 	nodeFactory.markEndPosition();
 	expectToken(Token::Semicolon);
-	return nodeFactory.createNode<ImportDirective>(path, unitAlias, move(symbolAliases));
+	return nodeFactory.createNode<ImportDirective>(path, unitAlias, unitAliasLocation, move(symbolAliases));
 }
 
 std::pair<ContractKind, bool> Parser::parseContractKind()
@@ -317,6 +320,7 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition()
 	RecursionGuard recursionGuard(*this);
 	ASTNodeFactory nodeFactory(*this);
 	ASTPointer<ASTString> name =  nullptr;
+	SourceLocation nameLocation{};
 	ASTPointer<StructuredDocumentation> documentation;
 	vector<ASTPointer<InheritanceSpecifier>> baseContracts;
 	vector<ASTPointer<ASTNode>> subNodes;
@@ -325,7 +329,7 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition()
 	{
 		documentation = parseStructuredDocumentation();
 		contractKind = parseContractKind();
-		name = expectIdentifierToken();
+		tie(name, nameLocation) = expectIdentifierWithLocation();
 		if (m_scanner->currentToken() == Token::Is)
 			do
 			{
@@ -385,6 +389,7 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition()
 		expectToken(Token::RBrace);
 	return nodeFactory.createNode<ContractDefinition>(
 		name,
+		nameLocation,
 		documentation,
 		baseContracts,
 		subNodes,
@@ -572,6 +577,7 @@ ASTPointer<ASTNode> Parser::parseFunctionDefinition(bool _freeFunction)
 
 	Token kind = m_scanner->currentToken();
 	ASTPointer<ASTString> name;
+	SourceLocation nameLocation;
 	if (kind == Token::Function)
 	{
 		m_scanner->next();
@@ -586,6 +592,7 @@ ASTPointer<ASTNode> Parser::parseFunctionDefinition(bool _freeFunction)
 				{Token::Fallback, "fallback function"},
 				{Token::Receive, "receive function"},
 			}.at(m_scanner->currentToken());
+			nameLocation = currentLocation();
 			name = make_shared<ASTString>(TokenTraits::toString(m_scanner->currentToken()));
 			string message{
 				"This function is named \"" + *name + "\" but is not the " + expected + " of the contract. "
@@ -599,13 +606,16 @@ ASTPointer<ASTNode> Parser::parseFunctionDefinition(bool _freeFunction)
 			m_scanner->next();
 		}
 		else
-			name = expectIdentifierToken();
+		{
+			tie(name, nameLocation) = expectIdentifierWithLocation();
+		}
 	}
 	else
 	{
 		solAssert(kind == Token::Constructor || kind == Token::Fallback || kind == Token::Receive, "");
 		m_scanner->next();
 		name = make_shared<ASTString>();
+		nameLocation = currentLocation();
 	}
 
 	FunctionHeaderParserResult header = parseFunctionHeader(false);
@@ -621,6 +631,7 @@ ASTPointer<ASTNode> Parser::parseFunctionDefinition(bool _freeFunction)
 	}
 	return nodeFactory.createNode<FunctionDefinition>(
 		name,
+		nameLocation,
 		header.visibility,
 		header.stateMutability,
 		_freeFunction,
@@ -641,6 +652,7 @@ ASTPointer<StructDefinition> Parser::parseStructDefinition()
 	ASTNodeFactory nodeFactory(*this);
 	expectToken(Token::Struct);
 	ASTPointer<ASTString> name = expectIdentifierToken();
+	SourceLocation nameLocation = currentLocation();
 	vector<ASTPointer<VariableDeclaration>> members;
 	expectToken(Token::LBrace);
 	while (m_scanner->currentToken() != Token::RBrace)
@@ -650,7 +662,7 @@ ASTPointer<StructDefinition> Parser::parseStructDefinition()
 	}
 	nodeFactory.markEndPosition();
 	expectToken(Token::RBrace);
-	return nodeFactory.createNode<StructDefinition>(name, members);
+	return nodeFactory.createNode<StructDefinition>(name, nameLocation, members);
 }
 
 ASTPointer<EnumValue> Parser::parseEnumValue()
@@ -667,6 +679,8 @@ ASTPointer<EnumDefinition> Parser::parseEnumDefinition()
 	ASTNodeFactory nodeFactory(*this);
 	expectToken(Token::Enum);
 	ASTPointer<ASTString> name = expectIdentifierToken();
+	nodeFactory.markEndPosition();
+	SourceLocation nameLocation = nodeFactory.location();
 	vector<ASTPointer<EnumValue>> members;
 	expectToken(Token::LBrace);
 
@@ -684,7 +698,7 @@ ASTPointer<EnumDefinition> Parser::parseEnumDefinition()
 
 	nodeFactory.markEndPosition();
 	expectToken(Token::RBrace);
-	return nodeFactory.createNode<EnumDefinition>(name, members);
+	return nodeFactory.createNode<EnumDefinition>(name, nameLocation, members);
 }
 
 ASTPointer<VariableDeclaration> Parser::parseVariableDeclaration(
@@ -717,6 +731,7 @@ ASTPointer<VariableDeclaration> Parser::parseVariableDeclaration(
 	Visibility visibility(Visibility::Default);
 	VariableDeclaration::Location location = VariableDeclaration::Location::Unspecified;
 	ASTPointer<ASTString> identifier;
+	SourceLocation nameLocation{};
 
 	while (true)
 	{
@@ -795,7 +810,7 @@ ASTPointer<VariableDeclaration> Parser::parseVariableDeclaration(
 	else
 	{
 		nodeFactory.markEndPosition();
-		identifier = expectIdentifierToken();
+		tie(identifier, nameLocation) = expectIdentifierWithLocation();
 	}
 	ASTPointer<Expression> value;
 	if (_options.allowInitialValue)
@@ -810,6 +825,7 @@ ASTPointer<VariableDeclaration> Parser::parseVariableDeclaration(
 	return nodeFactory.createNode<VariableDeclaration>(
 		type,
 		identifier,
+		nameLocation,
 		value,
 		visibility,
 		documentation,
@@ -831,6 +847,7 @@ ASTPointer<ModifierDefinition> Parser::parseModifierDefinition()
 
 	expectToken(Token::Modifier);
 	ASTPointer<ASTString> name(expectIdentifierToken());
+	SourceLocation nameLocation = currentLocation();
 	ASTPointer<ParameterList> parameters;
 	if (m_scanner->currentToken() == Token::LParen)
 	{
@@ -875,7 +892,15 @@ ASTPointer<ModifierDefinition> Parser::parseModifierDefinition()
 	else
 		m_scanner->next(); // just consume the ';'
 
-	return nodeFactory.createNode<ModifierDefinition>(name, documentation, parameters, isVirtual, overrides, block);
+	return nodeFactory.createNode<ModifierDefinition>(name, nameLocation, documentation, parameters, isVirtual, overrides, block);
+}
+
+pair<ASTPointer<ASTString>, SourceLocation> Parser::expectIdentifierWithLocation()
+{
+	SourceLocation nameLocation = currentLocation();
+	ASTPointer<ASTString> name = expectIdentifierToken();
+
+	return {name, nameLocation};
 }
 
 ASTPointer<EventDefinition> Parser::parseEventDefinition()
@@ -885,7 +910,7 @@ ASTPointer<EventDefinition> Parser::parseEventDefinition()
 	ASTPointer<StructuredDocumentation> documentation = parseStructuredDocumentation();
 
 	expectToken(Token::Event);
-	ASTPointer<ASTString> name(expectIdentifierToken());
+	auto [name, nameLocation] = expectIdentifierWithLocation();
 
 	VarDeclParserOptions options;
 	options.allowIndexed = true;
@@ -899,7 +924,7 @@ ASTPointer<EventDefinition> Parser::parseEventDefinition()
 	}
 	nodeFactory.markEndPosition();
 	expectToken(Token::Semicolon);
-	return nodeFactory.createNode<EventDefinition>(name, documentation, parameters, anonymous);
+	return nodeFactory.createNode<EventDefinition>(name, nameLocation, documentation, parameters, anonymous);
 }
 
 ASTPointer<UsingForDirective> Parser::parseUsingDirective()
