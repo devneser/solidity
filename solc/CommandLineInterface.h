@@ -24,6 +24,7 @@
 
 #include <libsolidity/interface/CompilerStack.h>
 #include <libsolidity/interface/DebugSettings.h>
+#include <libsolidity/interface/FileReader.h>
 #include <libyul/AssemblyStack.h>
 #include <liblangutil/EVMVersion.h>
 
@@ -112,16 +113,14 @@ private:
 
 	bool m_onlyLink = false;
 
+	FileReader m_fileReader;
+
 	/// Compiler arguments variable map
 	boost::program_options::variables_map m_args;
 	/// map of input files to source code strings
-	std::map<std::string, std::string> m_sourceCodes;
+	//std::map<std::string, std::string> m_sourceCodes;
 	/// list of remappings
 	std::vector<frontend::CompilerStack::Remapping> m_remappings;
-	/// list of allowed directories to read files from
-	std::vector<boost::filesystem::path> m_allowedDirectories;
-	/// Base path, used for resolving relative paths in imports.
-	boost::filesystem::path m_basePath;
 	/// map of library names to addresses
 	std::map<std::string, util::h160> m_libraries;
 	/// Solidity compiler stack
