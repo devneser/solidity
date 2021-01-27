@@ -46,14 +46,9 @@ struct DocumentPosition {
 	Position position;
 };
 
-struct InitializeResponse {
+struct ServerId {
 	std::string serverName;
 	std::string serverVersion;
-	bool supportsReferences = false;
-	bool supportsDocumentHighlight = false;
-	bool supportsDefinition = false;
-	bool supportsHover = false;
-	bool supportsDocumentSync = false;
 };
 
 enum class DocumentHighlightKind {
@@ -143,7 +138,7 @@ public:
 
 	// {{{ Client-to-Server API
 	/// Invoked by the client to trigger server initialization.
-	virtual InitializeResponse initialize(
+	virtual ServerId initialize(
 		// LSP: Maybe also client capabilities param?
 		std::string _rootUri,
 		std::map<std::string, std::string> _settings,

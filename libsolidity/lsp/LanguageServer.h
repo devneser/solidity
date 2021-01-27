@@ -55,7 +55,7 @@ public:
 	std::vector<boost::filesystem::path>& allowedDirectories() noexcept { return m_allowedDirectories; }
 
 	// Client-to-Server messages
-	::lsp::InitializeResponse initialize(std::string _rootUri, std::map<std::string, std::string> _settings, ::lsp::Trace _trace, std::vector<::lsp::WorkspaceFolder> _workspaceFolders) override;
+	::lsp::ServerId initialize(std::string _rootUri, std::map<std::string, std::string> _settings, ::lsp::Trace _trace, std::vector<::lsp::WorkspaceFolder> _workspaceFolders) override;
 	void initialized() override;
 	void shutdown() override;
 	void documentOpened(std::string const& _uri, std::string _languageId, int _documentVersion, std::string _contents) override;

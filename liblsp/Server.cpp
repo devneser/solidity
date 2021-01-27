@@ -136,8 +136,9 @@ void Server::handle_initializeRequest(MessageId _id, Json::Value const& _args)
 			workspaceFolders.emplace_back(move(wsFolder));
 		}
 	}
+
 	// TODO: initializationOptions
-	map<string, string> settings{};
+	map<string, string> settings{}; // should then be passed to initialize!
 
 	// TODO: ClientCapabilities
 	// ...
@@ -148,19 +149,18 @@ void Server::handle_initializeRequest(MessageId _id, Json::Value const& _args)
 	Json::Value jsonReply;
 
 	if (!info.serverName.empty())
-	{
 		jsonReply["serverInfo"]["name"] = info.serverName;
-		if (!info.serverVersion.empty())
-			jsonReply["serverInfo"]["version"] = info.serverVersion;
-	}
 
-	jsonReply["hoverProvider"] = info.supportsHover;
-	jsonReply["capabilities"]["hoverProvider"] = info.supportsHover;
+	if (!info.serverVersion.empty())
+		jsonReply["serverInfo"]["version"] = info.serverVersion;
+
+	jsonReply["hoverProvider"] = true;
+	jsonReply["capabilities"]["hoverProvider"] = true;
 	jsonReply["capabilities"]["textDocumentSync"]["openClose"] = true;
 	jsonReply["capabilities"]["textDocumentSync"]["change"] = true;
-	jsonReply["capabilities"]["definitionProvider"] = info.supportsDefinition;
-	jsonReply["capabilities"]["documentHighlightProvider"] = info.supportsDocumentHighlight;
-	jsonReply["capabilities"]["referencesProvider"] = info.supportsReferences;
+	jsonReply["capabilities"]["definitionProvider"] = true;
+	jsonReply["capabilities"]["documentHighlightProvider"] = true;
+	jsonReply["capabilities"]["referencesProvider"] = true;
 
 	m_client.reply(_id, jsonReply);
 	// }}}

@@ -154,7 +154,7 @@ void LanguageServer::shutdown()
 	logInfo("LanguageServer: shutdown requested");
 }
 
-::lsp::InitializeResponse LanguageServer::initialize(
+::lsp::ServerId LanguageServer::initialize(
 	string _rootUri,
 	map<string, string> _settings,
 	::lsp::Trace _trace,
@@ -182,15 +182,7 @@ void LanguageServer::shutdown()
 	logMessage(msg.str());
 #endif
 
-	::lsp::InitializeResponse hello{};
-	hello.serverName = "solc";
-	hello.serverVersion = string(solidity::frontend::VersionNumber);
-	hello.supportsDefinition = true;
-	hello.supportsDocumentHighlight = true;
-	hello.supportsDocumentSync = true;
-	hello.supportsReferences = true;
-	hello.supportsHover = false; // TODO
-	return hello;
+	return {"solc", string(solidity::frontend::VersionNumber)};
 }
 
 void LanguageServer::initialized()
