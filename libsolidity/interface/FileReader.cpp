@@ -27,6 +27,7 @@ using solidity::frontend::ReadCallback;
 using solidity::langutil::InternalCompilerError;
 using solidity::util::errinfo_comment;
 using solidity::util::readFileAsString;
+using std::optional;
 using std::string;
 using std::vector;
 
@@ -52,7 +53,7 @@ void FileReader::allowDirectory(boost::filesystem::path _path)
 		m_allowedDirectories.emplace_back(std::move(_path));
 }
 
-void FileReader::setSource(string _path, std::optional<boost::filesystem::path> _fspath, std::string _source)
+void FileReader::setSource(string _path, optional<boost::filesystem::path> _fspath, string _source)
 {
 	if (_fspath.has_value())
 		m_fullPathMapping[_path] = _fspath.value().generic_string();
@@ -106,6 +107,7 @@ ReadCallback::Result FileReader::readFile(string const& _kind, string const& _pa
 			// NOTE: we ignore the FileNotFound exception as we manually check above
 			auto contents = readFileAsString(canonicalPath.string());
 			m_sourceCodes[path.generic_string()] = contents;
+			m_fullPathMapping[_path] = path.generic_string();
 			return ReadCallback::Result{true, contents};
 	}
 	catch (util::Exception const& _exception)
