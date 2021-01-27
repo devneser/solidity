@@ -218,40 +218,44 @@ void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _v
 {
 	// TODO: all this info is actually unrelated to solidity/lsp specifically except knowing that
 	// the file has updated, so we can  abstract that away and only do the re-validation here.
-	if (::lsp::vfs::File* file = m_vfs.find(_uri); file != nullptr)
+	auto file = m_vfs.find(_uri);
+	if (!file)
 	{
-		if (_version.has_value())
-			file->setVersion(_version.value());
-
-		for (DocumentChange const& change: _changes)
-		{
-#if !defined(NDEBUG)
-			ostringstream str;
-			str << "did change: " << change.range << " for '" << change.text << "'";
-			logMessage(str.str());
-#endif
-			file->modify(change.range, change.text);
-		}
-
-		validate(*file);
-	}
-	else
 		logError("LanguageServer: File to be modified not opened \"" + _uri + "\"");
+		return;
+	}
+
+	if (_version.has_value())
+		file->setVersion(_version.value());
+
+	for (DocumentChange const& change: _changes)
+	{
+#if !defined(NDEBUG)
+		ostringstream str;
+		str << "did change: " << change.range << " for '" << change.text << "'";
+		logMessage(str.str());
+#endif
+		file->modify(change.range, change.text);
+	}
+
+	validate(*file);
 }
 
 void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _version, string const& _fullContentChange)
 {
-	if (::lsp::vfs::File* file = m_vfs.find(_uri); file != nullptr)
+	auto file = m_vfs.find(_uri);
+	if (!file)
 	{
-		if (_version.has_value())
-			file->setVersion(_version.value());
-
-		file->replace(_fullContentChange);
-
-		validate(*file);
-	}
-	else
 		logError("LanguageServer: File to be modified not opened \"" + _uri + "\"");
+		return;
+	}
+
+	if (_version.has_value())
+		file->setVersion(_version.value());
+
+	file->replace(_fullContentChange);
+
+	validate(*file);
 }
 
 void LanguageServer::documentClosed(string const& _uri)
@@ -281,20 +285,22 @@ frontend::ReadCallback::Result LanguageServer::readFile(string const& _kind, str
 
 constexpr ::lsp::Server::DiagnosticSeverity toDiagnosticSeverity(Error::Type _errorType)
 {
+	using Type = Error::Type;
+	using Severity = ::lsp::Server::DiagnosticSeverity;
 	switch (_errorType)
 	{
-		case Error::Type::CodeGenerationError:
-		case Error::Type::DeclarationError:
-		case Error::Type::DocstringParsingError:
-		case Error::Type::ParserError:
-		case Error::Type::SyntaxError:
-		case Error::Type::TypeError:
-			return ::lsp::Server::DiagnosticSeverity::Error;
-		case Error::Type::Warning:
-			return ::lsp::Server::DiagnosticSeverity::Warning;
+		case Type::CodeGenerationError:
+		case Type::DeclarationError:
+		case Type::DocstringParsingError:
+		case Type::ParserError:
+		case Type::SyntaxError:
+		case Type::TypeError:
+			return Severity::Error;
+		case Type::Warning:
+			return Severity::Warning;
 	}
 	// Should never be reached.
-	return ::lsp::Server::DiagnosticSeverity::Error;
+	return Severity::Error;
 }
 
 void LanguageServer::compile(::lsp::vfs::File const& _file)
@@ -421,6 +427,7 @@ frontend::ASTNode const* LanguageServer::findASTNode(::lsp::Position const& _pos
 	ASTNodeLocator m{sourcePos};
 	sourceUnit.accept(m);
 	auto const closestMatch = m.closestMatch();
+
 	if (closestMatch != nullptr)
 		fprintf(stderr, "findASTNode for %s @ pos=%d:%d (%d), symbol: '%s' (%s)\n",
 				sourceUnit.location().source->name().c_str(),
@@ -439,78 +446,75 @@ frontend::ASTNode const* LanguageServer::findASTNode(::lsp::Position const& _pos
 
 optional<LanguageServer::Location> LanguageServer::gotoDefinition(DocumentPosition _location)
 {
-	if (auto const file = m_vfs.find(_location.uri); file != nullptr)
+	auto const file = m_vfs.find(_location.uri);
+	if (!file)
 	{
-		compile(*file);
-		solAssert(m_compilerStack.get() != nullptr, "");
+		// error(_params.requestId, ErrorCode::InvalidRequest, "File not found in VFS.");
+		return nullopt;
+	}
 
-		auto const sourceName = file->uri().substr(7); // strip "file://"
+	compile(*file);
+	solAssert(m_compilerStack.get() != nullptr, "");
 
-		if (auto const sourceNode = findASTNode(_location.position, sourceName); sourceNode)
-		{
-			if (auto const importDirective = dynamic_cast<ImportDirective const*>(sourceNode))
-			{
-				// When cursor is on an import directive, then we want to jump to the actual file that
-				// is being imported.
-				if (auto const fpm = m_fileReader->fullPathMapping().find(importDirective->path()); fpm != m_fileReader->fullPathMapping().end())
-				{
-					Location output{};
-					output.uri = "file://" + fpm->second;
-					return {output};
-				}
-				else
-					return nullopt; // definition not found
-			}
-			else if (auto const n = dynamic_cast<frontend::MemberAccess const*>(sourceNode); n)
-			{
-				// For scope members, jump to the naming symbol of the referencing declaration of this member.
-				auto const declaration = n->annotation().referencedDeclaration;
+	auto const sourceName = file->uri().substr(7); // strip "file://"
 
-				if (auto const loc = declarationPosition(declaration); loc.has_value())
-				{
-					auto const sourceName = declaration->location().source->name();
-					auto const fullSourceName = m_fileReader->fullPathMapping().at(sourceName);
-					Location output{};
-					output.range = loc.value();
-					output.uri = "file://" + fullSourceName;
-					return output;
-				}
-				else
-					return nullopt; // definition not found
-			}
-			else if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
-			{
-				// For identifiers, jump to the naming symbol of the definition of this identifier.
-				auto const declaration = !sourceIdentifier->annotation().candidateDeclarations.empty()
-					? sourceIdentifier->annotation().candidateDeclarations.front()
-					: sourceIdentifier->annotation().referencedDeclaration;
+	auto const sourceNode = findASTNode(_location.position, sourceName);
+	if (!sourceNode)
+	{
+		// error(_params.requestId, ErrorCode::InvalidParams, "Symbol not found.");
+		return nullopt;
+	}
 
-				if (auto const loc = declarationPosition(declaration); loc.has_value())
-				{
-					Location output{};
-					output.range = loc.value();
-					output.uri = "file://" + declaration->location().source->name();
-					return output;
-				}
-				else
-					return nullopt; // definition not found
-			}
-			else
-			{
-				fprintf(stderr, "identifier: %s\n", typeid(*sourceIdentifier).name());
-				// LOG: error(_params.requestId, ErrorCode::InvalidParams, "Symbol is not an identifier.");
-				return nullopt;
-			}
-		}
-		else
-		{
-			// error(_params.requestId, ErrorCode::InvalidParams, "Symbol not found.");
-			return nullopt;
-		}
+	if (auto const importDirective = dynamic_cast<ImportDirective const*>(sourceNode))
+	{
+		// When cursor is on an import directive, then we want to jump to the actual file that
+		// is being imported.
+		auto const fpm = m_fileReader->fullPathMapping().find(importDirective->path());
+		if (fpm == m_fileReader->fullPathMapping().end())
+			return nullopt; // definition not found
+
+		Location output{};
+		output.uri = "file://" + fpm->second;
+		return {output};
+	}
+	else if (auto const n = dynamic_cast<frontend::MemberAccess const*>(sourceNode); n)
+	{
+		// For scope members, jump to the naming symbol of the referencing declaration of this member.
+		auto const declaration = n->annotation().referencedDeclaration;
+
+		auto const loc = declarationPosition(declaration);
+		if (!loc.has_value())
+			return nullopt; // definition not found
+
+		auto const sourceName = declaration->location().source->name();
+		auto const fullSourceName = m_fileReader->fullPathMapping().at(sourceName);
+		Location output{};
+		output.range = loc.value();
+		output.uri = "file://" + fullSourceName;
+		return output;
+	}
+	else if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
+	{
+		// For identifiers, jump to the naming symbol of the definition of this identifier.
+		auto const declaration = !sourceIdentifier->annotation().candidateDeclarations.empty()
+			? sourceIdentifier->annotation().candidateDeclarations.front()
+			: sourceIdentifier->annotation().referencedDeclaration;
+
+		// TODO: LSP seems to support Location[] as response. => return ref & ALL candidates then.
+
+		auto const loc = declarationPosition(declaration);
+		if (!loc.has_value())
+			return nullopt; // definition not found
+
+		Location output{};
+		output.range = loc.value();
+		output.uri = "file://" + declaration->location().source->name();
+		return output;
 	}
 	else
 	{
-		// error(_params.requestId, ErrorCode::InvalidRequest, "File not found in VFS.");
+		fprintf(stderr, "identifier: %s\n", typeid(*sourceIdentifier).name());
+		// LOG: error(_params.requestId, ErrorCode::InvalidParams, "Symbol is not an identifier.");
 		return nullopt;
 	}
 }
@@ -566,56 +570,53 @@ vector<LanguageServer::Location> LanguageServer::references(DocumentPosition _do
 		_documentPosition.position.column
 	);
 
-	if (auto const file = m_vfs.find(_documentPosition.uri); file != nullptr)
-	{
-		if (!m_compilerStack)
-			compile(*file);
-
-		solAssert(m_compilerStack.get() != nullptr, "");
-
-		auto const sourceName = file->uri().substr(7); // strip "file://"
-
-		if (auto const sourceNode = findASTNode(_documentPosition.position, sourceName); sourceNode)
-		{
-			auto output = vector<Location>{};
-			if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
-			{
-				auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
-				frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
-
-				if (auto decl = sourceIdentifier->annotation().referencedDeclaration; decl)
-					findAllReferences(decl, sourceUnit, _documentPosition.uri, output);
-
-				for (auto const decl: sourceIdentifier->annotation().candidateDeclarations)
-					findAllReferences(decl, sourceUnit, _documentPosition.uri, output);
-			}
-			else if (auto const varDecl = dynamic_cast<VariableDeclaration const*>(sourceNode); varDecl != nullptr)
-			{
-				fprintf(stderr, "AST node is vardecl\n");
-				auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
-				frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
-				findAllReferences(varDecl, sourceUnit, _documentPosition.uri, output);
-			}
-			else
-			{
-				fprintf(stderr, "not an identifier\n");
-			}
-			return output;
-		}
-		else
-		{
-			fprintf(stderr, "AST node not found\n");
-			// error(_params.requestId, ErrorCode::InvalidParams, "Symbol not found.");
-			return {};
-		}
-	}
-	else
+	auto const file = m_vfs.find(_documentPosition.uri);
+	if (!file)
 	{
 		// reply(_params.requestId, output);
 		// error(_params.requestId, ErrorCode::RequestCancelled, "not implemented yet.");
 		return {};
 	}
-	fflush(stderr);
+
+	if (!m_compilerStack)
+		compile(*file);
+
+	solAssert(m_compilerStack.get() != nullptr, "");
+
+	auto const sourceName = file->uri().substr(7); // strip "file://"
+
+	auto const sourceNode = findASTNode(_documentPosition.position, sourceName);
+	if (!sourceNode)
+	{
+		fprintf(stderr, "AST node not found\n");
+		// error(_params.requestId, ErrorCode::InvalidParams, "Symbol not found.");
+		return {};
+	}
+
+	auto output = vector<Location>{};
+	if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
+	{
+		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
+		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
+
+		if (auto decl = sourceIdentifier->annotation().referencedDeclaration; decl)
+			findAllReferences(decl, sourceUnit, _documentPosition.uri, output);
+
+		for (auto const decl: sourceIdentifier->annotation().candidateDeclarations)
+			findAllReferences(decl, sourceUnit, _documentPosition.uri, output);
+	}
+	else if (auto const varDecl = dynamic_cast<VariableDeclaration const*>(sourceNode); varDecl != nullptr)
+	{
+		fprintf(stderr, "AST node is vardecl\n");
+		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
+		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
+		findAllReferences(varDecl, sourceUnit, _documentPosition.uri, output);
+	}
+	else
+	{
+		fprintf(stderr, "not an identifier\n");
+	}
+	return output;
 }
 
 vector<LanguageServer::DocumentHighlight> LanguageServer::semanticHighlight(DocumentPosition _documentPosition)
@@ -626,52 +627,51 @@ vector<LanguageServer::DocumentHighlight> LanguageServer::semanticHighlight(Docu
 		_documentPosition.position.column
 	);
 
-	if (auto const file = m_vfs.find(_documentPosition.uri); file != nullptr)
-	{
-		compile(*file);
-		solAssert(m_compilerStack.get() != nullptr, "");
-
-		auto const sourceName = file->uri().substr(7); // strip "file://"
-
-		if (auto const sourceNode = findASTNode(_documentPosition.position, sourceName); sourceNode)
-		{
-			auto output = vector<DocumentHighlight>{};
-			if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
-			{
-				auto const declaration = !sourceIdentifier->annotation().candidateDeclarations.empty()
-					? sourceIdentifier->annotation().candidateDeclarations.front()
-					: sourceIdentifier->annotation().referencedDeclaration;
-
-				auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
-				frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
-				output = findAllReferences(declaration, sourceUnit);
-			}
-			else if (auto const varDecl = dynamic_cast<VariableDeclaration const*>(sourceNode); varDecl != nullptr)
-			{
-				fprintf(stderr, "AST node is vardecl\n");
-				auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
-				frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
-				output = findAllReferences(varDecl, sourceUnit);
-			}
-			else
-			{
-				fprintf(stderr, "not an identifier\n");
-			}
-			return output;
-		}
-		else
-		{
-			fprintf(stderr, "AST node not found\n");
-			// error(_documentPosition.requestId, ErrorCode::InvalidParams, "Symbol not found.");
-			return {};
-		}
-	}
-	else
+	auto const file = m_vfs.find(_documentPosition.uri);
+	if (!file)
 	{
 		// reply(_params.requestId, output);
 		// error(_documentPosition.requestId, ErrorCode::RequestCancelled, "not implemented yet.");
 		return {};
 	}
+
+	compile(*file);
+	solAssert(m_compilerStack.get() != nullptr, "");
+
+	auto const sourceName = file->uri().substr(7); // strip "file://"
+
+	auto const sourceNode = findASTNode(_documentPosition.position, sourceName);
+	if (!sourceNode)
+	{
+		fprintf(stderr, "AST node not found\n");
+		// error(_documentPosition.requestId, ErrorCode::InvalidParams, "Symbol not found.");
+		return {};
+	}
+
+	auto output = vector<DocumentHighlight>{};
+	if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
+	{
+		auto const declaration = !sourceIdentifier->annotation().candidateDeclarations.empty()
+			? sourceIdentifier->annotation().candidateDeclarations.front()
+			: sourceIdentifier->annotation().referencedDeclaration;
+
+		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
+		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
+		output = findAllReferences(declaration, sourceUnit);
+	}
+	else if (auto const varDecl = dynamic_cast<VariableDeclaration const*>(sourceNode); varDecl != nullptr)
+	{
+		fprintf(stderr, "AST node is vardecl\n");
+		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
+		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
+		output = findAllReferences(varDecl, sourceUnit);
+	}
+	else
+	{
+		fprintf(stderr, "not an identifier\n");
+	}
+
+	return output;
 }
 
 } // namespace solidity
