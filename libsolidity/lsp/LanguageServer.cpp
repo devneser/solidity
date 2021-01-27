@@ -214,7 +214,7 @@ void LanguageServer::documentOpened(string const& _uri, string _languageId, int 
 	validate(file);
 }
 
-void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _version, vector<::lsp::DocumentChange> _changes)
+void LanguageServer::documentContentUpdated(std::string const& _uri, std::optional<int> _version, ::lsp::Range _range, std::string const& _text)
 {
 	// TODO: all this info is actually unrelated to solidity/lsp specifically except knowing that
 	// the file has updated, so we can  abstract that away and only do the re-validation here.
@@ -228,15 +228,12 @@ void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _v
 	if (_version.has_value())
 		file->setVersion(_version.value());
 
-	for (::lsp::DocumentChange const& change: _changes)
-	{
 #if !defined(NDEBUG)
-		ostringstream str;
-		str << "did change: " << change.range << " for '" << change.text << "'";
-		logMessage(str.str());
+	ostringstream str;
+	str << "did change: " << _range << " for '" << _text << "'";
+	logMessage(str.str());
 #endif
-		file->modify(change.range, change.text);
-	}
+	file->modify(_range, _text);
 
 	validate(*file);
 }
@@ -453,7 +450,7 @@ optional<::lsp::Location> LanguageServer::gotoDefinition(::lsp::DocumentPosition
 		return nullopt;
 	}
 
-	compile(*file);
+	// source should be compiled already
 	solAssert(m_compilerStack.get() != nullptr, "");
 
 	auto const sourceName = file->uri().substr(7); // strip "file://"
@@ -462,6 +459,7 @@ optional<::lsp::Location> LanguageServer::gotoDefinition(::lsp::DocumentPosition
 	if (!sourceNode)
 	{
 		// error(_params.requestId, ErrorCode::InvalidParams, "Symbol not found.");
+		fprintf(stderr, "Could not infer AST node from given source location.\n");
 		return nullopt;
 	}
 
@@ -471,7 +469,10 @@ optional<::lsp::Location> LanguageServer::gotoDefinition(::lsp::DocumentPosition
 		// is being imported.
 		auto const fpm = m_fileReader->fullPathMapping().find(importDirective->path());
 		if (fpm == m_fileReader->fullPathMapping().end())
+		{
+			fprintf(stderr, "gotoDefinition: (importDirective) full path mapping not found\n");
 			return nullopt; // definition not found
+		}
 
 		::lsp::Location output{};
 		output.uri = "file://" + fpm->second;

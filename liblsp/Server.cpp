@@ -216,21 +216,23 @@ void Server::handle_textDocument_didChange(MessageId _id, Json::Value const& _ar
 	auto const version = _args["textDocument"]["version"].asInt();
 	auto const uri = _args["textDocument"]["uri"].asString();
 
-	std::vector<DocumentChange> allChanges;
+	// TODO: in the longer run, even move the VFS handling in here, as content updates are always
+	// equivalent regardless of actual lsp implementation.?
+
 	for (Json::Value jsonContentChange: _args["contentChanges"])
 	{
 		if (jsonContentChange.isObject() && jsonContentChange["range"])
 		{
 			Json::Value jsonRange = jsonContentChange["range"];
 
-			DocumentChange change{};
-			change.text = jsonContentChange["text"].asString();
-			change.range.start.line = jsonRange["start"]["line"].asInt();
-			change.range.start.column = jsonRange["start"]["character"].asInt();
-			change.range.end.line = jsonRange["end"]["line"].asInt();
-			change.range.end.column = jsonRange["end"]["character"].asInt();
+			auto const text = jsonContentChange["text"].asString();
+			Range range{};
+			range.start.line = jsonRange["start"]["line"].asInt();
+			range.start.column = jsonRange["start"]["character"].asInt();
+			range.end.line = jsonRange["end"]["line"].asInt();
+			range.end.column = jsonRange["end"]["character"].asInt();
 
-			allChanges.emplace_back(move(change));
+			documentContentUpdated(uri, version, range, text);
 		}
 		else
 		{
@@ -239,8 +241,8 @@ void Server::handle_textDocument_didChange(MessageId _id, Json::Value const& _ar
 		}
 	}
 
-	if (!allChanges.empty())
-		documentContentUpdated(uri, version, move(allChanges));
+	// if (!allChanges.empty())
+	// 	documentContentUpdated(uri, version, move(allChanges));
 }
 
 void Server::handle_textDocument_didClose(MessageId /*_id*/, Json::Value const& _args)

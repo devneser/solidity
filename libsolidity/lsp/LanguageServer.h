@@ -60,7 +60,7 @@ public:
 	void shutdown() override;
 	void documentOpened(std::string const& _uri, std::string _languageId, int _documentVersion, std::string _contents) override;
 	void documentContentUpdated(std::string const& _uri, std::optional<int> _documentVersion, std::string const& _fullContentChange) override;
-	void documentContentUpdated(std::string const& _uri, std::optional<int> _documentVersion, std::vector<::lsp::DocumentChange> _changes) override;
+	void documentContentUpdated(std::string const& _uri, std::optional<int> _version, ::lsp::Range _range, std::string const& _text) override;
 	void documentClosed(std::string const& _uri) override;
 	std::optional<::lsp::Location> gotoDefinition(::lsp::DocumentPosition _position) override;
 	std::vector<::lsp::DocumentHighlight> semanticHighlight(::lsp::DocumentPosition _documentPosition) override;

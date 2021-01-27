@@ -46,11 +46,6 @@ struct DocumentPosition {
 	Position position;
 };
 
-struct DocumentChange {
-	Range range;            // The range that is going to be replaced
-	std::string text;       // the replacement text
-};
-
 struct InitializeResponse {
 	std::string serverName;
 	std::string serverVersion;
@@ -182,8 +177,14 @@ public:
 	/// @param _uri
 	/// @param _version
 	/// @param _range The content range to replace
-	/// @param _contents the new contents the given range will be replaced with.
-	virtual void documentContentUpdated(std::string const& /*_uri*/, std::optional<int> /*_version*/, std::vector<DocumentChange> /*_changes*/) {}
+	/// @param _range The range that is going to be replaced
+	/// @param _text the replacement text
+	virtual void documentContentUpdated(
+		std::string const& /*_uri*/,
+		std::optional<int> /*_version*/,
+		Range /*_range*/,
+		std::string const& /*_text*/
+	) {}
 
 	/// The given document was closed.
 	virtual void documentClosed(std::string const& /*_uri*/) {}
