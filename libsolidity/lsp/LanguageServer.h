@@ -55,22 +55,22 @@ public:
 	std::vector<boost::filesystem::path>& allowedDirectories() noexcept { return m_allowedDirectories; }
 
 	// Client-to-Server messages
-	InitializeResponse initialize(std::string _rootUri, std::map<std::string, std::string> _settings, Trace _trace, std::vector<WorkspaceFolder> _workspaceFolders) override;
+	::lsp::InitializeResponse initialize(std::string _rootUri, std::map<std::string, std::string> _settings, ::lsp::Trace _trace, std::vector<::lsp::WorkspaceFolder> _workspaceFolders) override;
 	void initialized() override;
 	void shutdown() override;
 	void documentOpened(std::string const& _uri, std::string _languageId, int _documentVersion, std::string _contents) override;
 	void documentContentUpdated(std::string const& _uri, std::optional<int> _documentVersion, std::string const& _fullContentChange) override;
-	void documentContentUpdated(std::string const& _uri, std::optional<int> _documentVersion, std::vector<DocumentChange> _changes) override;
+	void documentContentUpdated(std::string const& _uri, std::optional<int> _documentVersion, std::vector<::lsp::DocumentChange> _changes) override;
 	void documentClosed(std::string const& _uri) override;
-	std::optional<Location> gotoDefinition(DocumentPosition _position) override;
-	std::vector<DocumentHighlight> semanticHighlight(DocumentPosition _documentPosition) override;
-	std::vector<Location> references(DocumentPosition _documentPosition) override;
+	std::optional<::lsp::Location> gotoDefinition(::lsp::DocumentPosition _position) override;
+	std::vector<::lsp::DocumentHighlight> semanticHighlight(::lsp::DocumentPosition _documentPosition) override;
+	std::vector<::lsp::Location> references(::lsp::DocumentPosition _documentPosition) override;
 
 	/// performs a validation run.
 	///
 	/// update diagnostics and also pushes any updates to the client.
 	void validateAll();
-	void validate(::lsp::vfs::File const& _file, std::vector<PublishDiagnostics>& _result);
+	void validate(::lsp::vfs::File const& _file, std::vector<::lsp::PublishDiagnostics>& _result);
 	void validate(::lsp::vfs::File const& _file);
 
 private:
@@ -82,7 +82,7 @@ private:
 
 	std::optional<::lsp::Range> declarationPosition(frontend::Declaration const* _declaration);
 
-	std::vector<DocumentHighlight> findAllReferences(
+	std::vector<::lsp::DocumentHighlight> findAllReferences(
 		frontend::Declaration const* _declaration,
 		frontend::SourceUnit const& _sourceUnit
 	);
@@ -91,7 +91,7 @@ private:
 		frontend::Declaration const* _declaration,
 		frontend::SourceUnit const& _sourceUnit,
 		std::string const& _sourceUnitUri,
-		std::vector<Location>& _output
+		std::vector<::lsp::Location>& _output
 	);
 
 private:
@@ -106,7 +106,7 @@ private:
 	std::map<std::string, std::string> m_sourceCodes;
 
 	/// Mapping between VFS file and its diagnostics.
-	std::map<std::string /*URI*/, std::vector<PublishDiagnostics>> m_diagnostics;
+	std::map<std::string /*URI*/, std::vector<::lsp::PublishDiagnostics>> m_diagnostics;
 
 	std::unique_ptr<frontend::CompilerStack> m_compilerStack;
 

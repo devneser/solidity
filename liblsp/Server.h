@@ -35,6 +35,89 @@ class Transport;
 
 enum class ErrorCode;
 
+// {{{ Helper types
+struct WorkspaceFolder {
+	std::string name; // The name of the workspace folder. Used to refer to this workspace folder in the user interface.
+	std::string uri;  // The associated URI for this workspace folder.
+};
+
+struct DocumentPosition {
+	std::string uri;
+	Position position;
+};
+
+struct DocumentChange {
+	Range range;            // The range that is going to be replaced
+	std::string text;       // the replacement text
+};
+
+struct InitializeResponse {
+	std::string serverName;
+	std::string serverVersion;
+	bool supportsReferences = false;
+	bool supportsDocumentHighlight = false;
+	bool supportsDefinition = false;
+	bool supportsHover = false;
+	bool supportsDocumentSync = false;
+};
+
+enum class DocumentHighlightKind {
+	Unspecified,
+	Text,           //!< a textual occurrence
+	Read,           //!< read access to a variable
+	Write,          //!< write access to a variable
+};
+
+struct DocumentHighlight {
+	Range range;
+	DocumentHighlightKind kind;
+};
+
+struct Location {
+	std::string uri;
+	Range range;
+};
+
+enum class Trace { Off, Messages, Verbose };
+
+enum class DiagnosticSeverity {
+	Error = 1,
+	Warning = 2,
+	Information = 3,
+	Hint = 4,
+};
+
+enum class DiagnosticTag {
+	Unnecessary = 1, // Unused or unnecessary code.
+	Deprecated = 2   // Deprecated or obsolete code.
+};
+
+/// Represents a related message and source code location for a diagnostic. This should be
+/// used to point to code locations that cause or related to a diagnostics, e.g when duplicating
+/// a symbol in a scope.
+struct DiagnosticRelatedInformation {
+	Location location;   // The location of this related diagnostic information.
+	std::string message; // The message of this related diagnostic information.
+};
+
+/// Represents a diagnostic, such as a compiler error or warning. Diagnostic objects are only valid in the scope of a resource.
+struct Diagnostic {
+	Range range;                                   // The range at which the message applies.
+	std::optional<DiagnosticSeverity> severity;
+	std::optional<unsigned long long> code;        // The diagnostic's code, which might appear in the user interface.
+	std::optional<std::string> source; // A human-readable string describing the source of this diagnostic, e.g. 'typescript' or 'super lint'.
+	std::string message; // The diagnostic's message.
+	std::vector<DiagnosticTag> diagnosticTag; // Additional metadata about the diagnostic.
+	std::vector<DiagnosticRelatedInformation> relatedInformation; // An array of related diagnostic information, e.g. when symbol-names within a scope collide all definitions can be marked via this property.
+};
+
+struct PublishDiagnostics {
+	std::string uri; // The URI for which diagnostic information is reported.
+	std::optional<int> version = std::nullopt; // Optional the version number of the document the diagnostics are published for.
+	std::vector<Diagnostic> diagnostics = {}; // An array of diagnostic information items.
+};
+// }}}
+
 /// Solidity Language Server, managing one LSP client.
 class Server: public Logger // TODO: rethink logging
 {
@@ -62,89 +145,6 @@ public:
 	/// Handles a raw client message
 	void handleMessage(std::string const& _message);
 	void handleMessage(Json::Value const& _jsonMessage);
-
-	// {{{ Helper types
-	struct WorkspaceFolder {
-		std::string name; // The name of the workspace folder. Used to refer to this workspace folder in the user interface.
-		std::string uri;  // The associated URI for this workspace folder.
-	};
-
-	struct DocumentPosition {
-		std::string uri;
-		Position position;
-	};
-
-	struct DocumentChange {
-		Range range;            // The range that is going to be replaced
-		std::string text;       // the replacement text
-	};
-
-	struct InitializeResponse {
-		std::string serverName;
-		std::string serverVersion;
-		bool supportsReferences = false;
-		bool supportsDocumentHighlight = false;
-		bool supportsDefinition = false;
-		bool supportsHover = false;
-		bool supportsDocumentSync = false;
-	};
-
-	enum class DocumentHighlightKind {
-		Unspecified,
-		Text,           //!< a textual occurrence
-		Read,           //!< read access to a variable
-		Write,          //!< write access to a variable
-	};
-
-	struct DocumentHighlight {
-		Range range;
-		DocumentHighlightKind kind;
-	};
-
-	struct Location {
-		std::string uri;
-		Range range;
-	};
-
-	enum class Trace { Off, Messages, Verbose };
-
-	enum class DiagnosticSeverity {
-		Error = 1,
-		Warning = 2,
-		Information = 3,
-		Hint = 4,
-	};
-
-	enum class DiagnosticTag {
-		Unnecessary = 1, // Unused or unnecessary code.
-		Deprecated = 2   // Deprecated or obsolete code.
-	};
-
-	/// Represents a related message and source code location for a diagnostic. This should be
-	/// used to point to code locations that cause or related to a diagnostics, e.g when duplicating
-	/// a symbol in a scope.
-	struct DiagnosticRelatedInformation {
-		Location location;   // The location of this related diagnostic information.
-		std::string message; // The message of this related diagnostic information.
-	};
-
-	/// Represents a diagnostic, such as a compiler error or warning. Diagnostic objects are only valid in the scope of a resource.
-	struct Diagnostic {
-		Range range;                                   // The range at which the message applies.
-		std::optional<DiagnosticSeverity> severity;
-		std::optional<unsigned long long> code;        // The diagnostic's code, which might appear in the user interface.
-		std::optional<std::string> source; // A human-readable string describing the source of this diagnostic, e.g. 'typescript' or 'super lint'.
-		std::string message; // The diagnostic's message.
-		std::vector<DiagnosticTag> diagnosticTag; // Additional metadata about the diagnostic.
-		std::vector<DiagnosticRelatedInformation> relatedInformation; // An array of related diagnostic information, e.g. when symbol-names within a scope collide all definitions can be marked via this property.
-	};
-
-	struct PublishDiagnostics {
-		std::string uri; // The URI for which diagnostic information is reported.
-		std::optional<int> version = std::nullopt; // Optional the version number of the document the diagnostics are published for.
-		std::vector<Diagnostic> diagnostics = {}; // An array of diagnostic information items.
-	};
-	// }}}
 
 	// {{{ Client-to-Server API
 	/// Invoked by the client to trigger server initialization.

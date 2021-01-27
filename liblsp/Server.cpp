@@ -251,7 +251,7 @@ void Server::handle_textDocument_didClose(MessageId /*_id*/, Json::Value const& 
 
 namespace
 {
-	void loadTextDocumentPosition(Server::DocumentPosition& _params, Json::Value const& _json)
+	void loadTextDocumentPosition(DocumentPosition& _params, Json::Value const& _json)
 	{
 		_params.uri = _json["textDocument"]["uri"].asString();
 		_params.position.line = _json["position"]["line"].asInt();

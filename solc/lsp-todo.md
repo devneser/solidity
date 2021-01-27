@@ -8,7 +8,7 @@
 - [x] extracting FileReader into own pr for shared use in solc
 - [x] migrating lsp into solc
 
-- [ ] early return in fn bodies
+- [x] early return in fn bodies
 - [ ] LSP seems to support Location[] as response. Try that!
 - [ ] BUG: cursor on a function def name -> find all refs -> yields no calls to this function
 

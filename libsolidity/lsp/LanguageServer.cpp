@@ -74,7 +74,7 @@ class ReferenceCollector: public frontend::ASTConstVisitor
 {
 private:
 	frontend::Declaration const& m_declaration;
-	std::vector<::lsp::Server::DocumentHighlight> m_result;
+	std::vector<::lsp::DocumentHighlight> m_result;
 
 public:
 	explicit ReferenceCollector(frontend::Declaration const& _declaration):
@@ -85,9 +85,9 @@ public:
 				_declaration.location().text().c_str());
 	}
 
-	std::vector<::lsp::Server::DocumentHighlight> take() { return std::move(m_result); }
+	std::vector<::lsp::DocumentHighlight> take() { return std::move(m_result); }
 
-	static std::vector<::lsp::Server::DocumentHighlight> collect(frontend::Declaration const& _declaration, frontend::ASTNode const& _ast)
+	static std::vector<::lsp::DocumentHighlight> collect(frontend::Declaration const& _declaration, frontend::ASTNode const& _ast)
 	{
 		auto collector = ReferenceCollector(_declaration);
 		_ast.accept(collector);
@@ -118,9 +118,9 @@ public:
 			endLine, endColumn
 		);
 
-		auto highlight = ::lsp::Server::DocumentHighlight{};
+		auto highlight = ::lsp::DocumentHighlight{};
 		highlight.range = locationRange;
-		highlight.kind = ::lsp::Server::DocumentHighlightKind::Text; // TODO: are you being read or written to?
+		highlight.kind = ::lsp::DocumentHighlightKind::Text; // TODO: are you being read or written to?
 
 		m_result.emplace_back(highlight);
 	}
@@ -154,11 +154,11 @@ void LanguageServer::shutdown()
 	logInfo("LanguageServer: shutdown requested");
 }
 
-LanguageServer::InitializeResponse LanguageServer::initialize(
+::lsp::InitializeResponse LanguageServer::initialize(
 	string _rootUri,
 	map<string, string> _settings,
-	Trace _trace,
-	vector<WorkspaceFolder> _workspaceFolders
+	::lsp::Trace _trace,
+	vector<::lsp::WorkspaceFolder> _workspaceFolders
 )
 {
 	(void) _trace; // TODO: debuglog based on this config
@@ -182,7 +182,7 @@ LanguageServer::InitializeResponse LanguageServer::initialize(
 	logMessage(msg.str());
 #endif
 
-	InitializeResponse hello{};
+	::lsp::InitializeResponse hello{};
 	hello.serverName = "solc";
 	hello.serverVersion = string(solidity::frontend::VersionNumber);
 	hello.supportsDefinition = true;
@@ -214,7 +214,7 @@ void LanguageServer::documentOpened(string const& _uri, string _languageId, int 
 	validate(file);
 }
 
-void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _version, vector<DocumentChange> _changes)
+void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _version, vector<::lsp::DocumentChange> _changes)
 {
 	// TODO: all this info is actually unrelated to solidity/lsp specifically except knowing that
 	// the file has updated, so we can  abstract that away and only do the re-validation here.
@@ -228,7 +228,7 @@ void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _v
 	if (_version.has_value())
 		file->setVersion(_version.value());
 
-	for (DocumentChange const& change: _changes)
+	for (::lsp::DocumentChange const& change: _changes)
 	{
 #if !defined(NDEBUG)
 		ostringstream str;
@@ -271,7 +271,7 @@ void LanguageServer::validateAll()
 
 void LanguageServer::validate(::lsp::vfs::File const& _file)
 {
-	vector<PublishDiagnostics> result;
+	vector<::lsp::PublishDiagnostics> result;
 	validate(_file, result);
 
 	for (auto const& diag: result)
@@ -283,10 +283,10 @@ frontend::ReadCallback::Result LanguageServer::readFile(string const& _kind, str
 	return m_fileReader->readFile(_kind, _path);
 }
 
-constexpr ::lsp::Server::DiagnosticSeverity toDiagnosticSeverity(Error::Type _errorType)
+constexpr ::lsp::DiagnosticSeverity toDiagnosticSeverity(Error::Type _errorType)
 {
 	using Type = Error::Type;
-	using Severity = ::lsp::Server::DiagnosticSeverity;
+	using Severity = ::lsp::DiagnosticSeverity;
 	switch (_errorType)
 	{
 		case Type::CodeGenerationError:
@@ -328,11 +328,11 @@ void LanguageServer::compile(::lsp::vfs::File const& _file)
 	m_compilerStack->compile();
 }
 
-void LanguageServer::validate(::lsp::vfs::File const& _file, vector<PublishDiagnostics>& _result)
+void LanguageServer::validate(::lsp::vfs::File const& _file, vector<::lsp::PublishDiagnostics>& _result)
 {
 	compile(_file);
 
-	PublishDiagnostics params{};
+	::lsp::PublishDiagnostics params{};
 	params.uri = _file.uri();
 
 	for (shared_ptr<Error const> const& error: m_compilerStack->errors())
@@ -357,7 +357,7 @@ void LanguageServer::validate(::lsp::vfs::File const& _file, vector<PublishDiagn
 			max(message.primary.endColumn, 0)
 		}};
 
-		Diagnostic diag{};
+		::lsp::Diagnostic diag{};
 		diag.range.start.line = startPosition.line;
 		diag.range.start.column = startPosition.column;
 		diag.range.end.line = endPosition.line;
@@ -368,7 +368,7 @@ void LanguageServer::validate(::lsp::vfs::File const& _file, vector<PublishDiagn
 
 		for (SourceReference const& secondary: message.secondary)
 		{
-			auto related = DiagnosticRelatedInformation{};
+			auto related = ::lsp::DiagnosticRelatedInformation{};
 
 			related.message = secondary.message;
 			related.location.uri = "file://" + secondary.sourceName; // is the sourceName always a fully qualified path?
@@ -392,22 +392,22 @@ void LanguageServer::validate(::lsp::vfs::File const& _file, vector<PublishDiagn
 #if 1
 	for (size_t pos = _file.contentString().find("FIXME", 0); pos != string::npos; pos = _file.contentString().find("FIXME", pos + 1))
 	{
-		Diagnostic diag{};
+		::lsp::Diagnostic diag{};
 		diag.message = "Hello, FIXME's should be fixed.";
 		diag.range.start = _file.buffer().toPosition(pos);
 		diag.range.end = {diag.range.start.line, diag.range.start.column + 5};
-		diag.severity = DiagnosticSeverity::Error;
+		diag.severity = ::lsp::DiagnosticSeverity::Error;
 		diag.source = "solc";
 		params.diagnostics.emplace_back(diag);
 	}
 
 	for (size_t pos = _file.contentString().find("TODO", 0); pos != string::npos; pos = _file.contentString().find("FIXME", pos + 1))
 	{
-		Diagnostic diag{};
+		::lsp::Diagnostic diag{};
 		diag.message = "Please remember to create a ticket on GitHub for that.";
 		diag.range.start = _file.buffer().toPosition(pos);
 		diag.range.end = {diag.range.start.line, diag.range.start.column + 5};
-		diag.severity = DiagnosticSeverity::Hint;
+		diag.severity = ::lsp::DiagnosticSeverity::Hint;
 		diag.source = "solc";
 		params.diagnostics.emplace_back(diag);
 	}
@@ -444,7 +444,7 @@ frontend::ASTNode const* LanguageServer::findASTNode(::lsp::Position const& _pos
 	return closestMatch;
 }
 
-optional<LanguageServer::Location> LanguageServer::gotoDefinition(DocumentPosition _location)
+optional<::lsp::Location> LanguageServer::gotoDefinition(::lsp::DocumentPosition _location)
 {
 	auto const file = m_vfs.find(_location.uri);
 	if (!file)
@@ -473,7 +473,7 @@ optional<LanguageServer::Location> LanguageServer::gotoDefinition(DocumentPositi
 		if (fpm == m_fileReader->fullPathMapping().end())
 			return nullopt; // definition not found
 
-		Location output{};
+		::lsp::Location output{};
 		output.uri = "file://" + fpm->second;
 		return {output};
 	}
@@ -488,7 +488,7 @@ optional<LanguageServer::Location> LanguageServer::gotoDefinition(DocumentPositi
 
 		auto const sourceName = declaration->location().source->name();
 		auto const fullSourceName = m_fileReader->fullPathMapping().at(sourceName);
-		Location output{};
+		::lsp::Location output{};
 		output.range = loc.value();
 		output.uri = "file://" + fullSourceName;
 		return output;
@@ -506,7 +506,7 @@ optional<LanguageServer::Location> LanguageServer::gotoDefinition(DocumentPositi
 		if (!loc.has_value())
 			return nullopt; // definition not found
 
-		Location output{};
+		::lsp::Location output{};
 		output.range = loc.value();
 		output.uri = "file://" + declaration->location().source->name();
 		return output;
@@ -535,7 +535,7 @@ optional<::lsp::Range> LanguageServer::declarationPosition(frontend::Declaration
 	};
 }
 
-std::vector<LanguageServer::DocumentHighlight> LanguageServer::findAllReferences(frontend::Declaration const* _declaration, SourceUnit const& _sourceUnit)
+std::vector<::lsp::DocumentHighlight> LanguageServer::findAllReferences(frontend::Declaration const* _declaration, SourceUnit const& _sourceUnit)
 {
 	if (!_declaration)
 		return {};
@@ -549,12 +549,12 @@ void LanguageServer::findAllReferences(
 	frontend::Declaration const* _declaration,
 	frontend::SourceUnit const& _sourceUnit,
 	std::string const& _sourceUnitUri,
-	std::vector<Location>& _output
+	std::vector<::lsp::Location>& _output
 )
 {
 	for (auto const& highlight: findAllReferences(_declaration, _sourceUnit))
 	{
-		auto location = Location{};
+		auto location = ::lsp::Location{};
 		location.range = highlight.range;
 		location.uri = _sourceUnitUri;
 		_output.emplace_back(location);
@@ -562,7 +562,7 @@ void LanguageServer::findAllReferences(
 }
 
 
-vector<LanguageServer::Location> LanguageServer::references(DocumentPosition _documentPosition)
+vector<::lsp::Location> LanguageServer::references(::lsp::DocumentPosition _documentPosition)
 {
 	fprintf(stderr, "find all references: %s:%d:%d\n",
 		_documentPosition.uri.c_str(),
@@ -593,7 +593,7 @@ vector<LanguageServer::Location> LanguageServer::references(DocumentPosition _do
 		return {};
 	}
 
-	auto output = vector<Location>{};
+	auto output = vector<::lsp::Location>{};
 	if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
 	{
 		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
@@ -619,7 +619,7 @@ vector<LanguageServer::Location> LanguageServer::references(DocumentPosition _do
 	return output;
 }
 
-vector<LanguageServer::DocumentHighlight> LanguageServer::semanticHighlight(DocumentPosition _documentPosition)
+vector<::lsp::DocumentHighlight> LanguageServer::semanticHighlight(::lsp::DocumentPosition _documentPosition)
 {
 	fprintf(stderr, "DocumentHighlightParams: %s:%d:%d\n",
 		_documentPosition.uri.c_str(),
@@ -648,7 +648,7 @@ vector<LanguageServer::DocumentHighlight> LanguageServer::semanticHighlight(Docu
 		return {};
 	}
 
-	auto output = vector<DocumentHighlight>{};
+	auto output = vector<::lsp::DocumentHighlight>{};
 	if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
 	{
 		auto const declaration = !sourceIdentifier->annotation().candidateDeclarations.empty()
