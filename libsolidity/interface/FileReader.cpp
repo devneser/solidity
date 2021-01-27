@@ -71,44 +71,44 @@ ReadCallback::Result FileReader::readFile(string const& _kind, string const& _pa
 {
 	try
 	{
-			if (_kind != ReadCallback::kindString(ReadCallback::Kind::ReadFile))
-				BOOST_THROW_EXCEPTION(InternalCompilerError() << errinfo_comment(
-					"ReadFile callback used as callback kind " +
-					_kind
-				));
-			string validPath = _path;
-			if (validPath.find("file://") == 0)
-				validPath.erase(0, 7);
+		if (_kind != ReadCallback::kindString(ReadCallback::Kind::ReadFile))
+			BOOST_THROW_EXCEPTION(InternalCompilerError() << errinfo_comment(
+				"ReadFile callback used as callback kind " +
+				_kind
+			));
+		string validPath = _path;
+		if (validPath.find("file://") == 0)
+			validPath.erase(0, 7);
 
-			auto const path = m_basePath / validPath;
-			auto canonicalPath = boost::filesystem::weakly_canonical(path);
-			bool isAllowed = false;
-			for (auto const& allowedDir: m_allowedDirectories)
+		auto const path = m_basePath / validPath;
+		auto canonicalPath = boost::filesystem::weakly_canonical(path);
+		bool isAllowed = false;
+		for (auto const& allowedDir: m_allowedDirectories)
+		{
+			// If dir is a prefix of boostPath, we are fine.
+			if (
+				std::distance(allowedDir.begin(), allowedDir.end()) <= std::distance(canonicalPath.begin(), canonicalPath.end()) &&
+				std::equal(allowedDir.begin(), allowedDir.end(), canonicalPath.begin())
+			)
 			{
-				// If dir is a prefix of boostPath, we are fine.
-				if (
-					std::distance(allowedDir.begin(), allowedDir.end()) <= std::distance(canonicalPath.begin(), canonicalPath.end()) &&
-					std::equal(allowedDir.begin(), allowedDir.end(), canonicalPath.begin())
-				)
-				{
-					isAllowed = true;
-					break;
-				}
+				isAllowed = true;
+				break;
 			}
-			if (!isAllowed)
-				return ReadCallback::Result{false, "File outside of allowed directories."};
+		}
+		if (!isAllowed)
+			return ReadCallback::Result{false, "File outside of allowed directories."};
 
-			if (!boost::filesystem::exists(canonicalPath))
-				return ReadCallback::Result{false, "File not found."};
+		if (!boost::filesystem::exists(canonicalPath))
+			return ReadCallback::Result{false, "File not found."};
 
-			if (!boost::filesystem::is_regular_file(canonicalPath))
-				return ReadCallback::Result{false, "Not a valid file."};
+		if (!boost::filesystem::is_regular_file(canonicalPath))
+			return ReadCallback::Result{false, "Not a valid file."};
 
-			// NOTE: we ignore the FileNotFound exception as we manually check above
-			auto contents = readFileAsString(canonicalPath.string());
-			m_sourceCodes[path.generic_string()] = contents;
-			m_fullPathMapping[_path] = path.generic_string();
-			return ReadCallback::Result{true, contents};
+		// NOTE: we ignore the FileNotFound exception as we manually check above
+		auto contents = readFileAsString(canonicalPath.string());
+		m_sourceCodes[path.generic_string()] = contents;
+		m_fullPathMapping[_path] = path.generic_string();
+		return ReadCallback::Result{true, contents};
 	}
 	catch (util::Exception const& _exception)
 	{
