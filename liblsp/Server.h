@@ -36,6 +36,8 @@ class Transport;
 enum class ErrorCode;
 
 // {{{ Helper types
+enum class Trace { Off, Messages, Verbose };
+
 struct WorkspaceFolder {
 	std::string name; // The name of the workspace folder. Used to refer to this workspace folder in the user interface.
 	std::string uri;  // The associated URI for this workspace folder.
@@ -58,17 +60,15 @@ enum class DocumentHighlightKind {
 	Write,          //!< write access to a variable
 };
 
-struct DocumentHighlight {
-	Range range;
-	DocumentHighlightKind kind;
-};
-
 struct Location {
 	std::string uri;
 	Range range;
 };
 
-enum class Trace { Off, Messages, Verbose };
+struct DocumentHighlight {
+	Range range;
+	DocumentHighlightKind kind;
+};
 
 enum class DiagnosticSeverity {
 	Error = 1,
@@ -95,16 +95,16 @@ struct Diagnostic {
 	Range range;                                   // The range at which the message applies.
 	std::optional<DiagnosticSeverity> severity;
 	std::optional<unsigned long long> code;        // The diagnostic's code, which might appear in the user interface.
-	std::optional<std::string> source; // A human-readable string describing the source of this diagnostic, e.g. 'typescript' or 'super lint'.
-	std::string message; // The diagnostic's message.
-	std::vector<DiagnosticTag> diagnosticTag; // Additional metadata about the diagnostic.
+	std::optional<std::string> source;             // A human-readable string describing the source of this diagnostic, e.g. 'typescript' or 'super lint'.
+	std::string message;                           // The diagnostic's message.
+	std::vector<DiagnosticTag> diagnosticTag;      // Additional metadata about the diagnostic.
 	std::vector<DiagnosticRelatedInformation> relatedInformation; // An array of related diagnostic information, e.g. when symbol-names within a scope collide all definitions can be marked via this property.
 };
 
 struct PublishDiagnostics {
-	std::string uri; // The URI for which diagnostic information is reported.
+	std::string uri;                           // The URI for which diagnostic information is reported.
 	std::optional<int> version = std::nullopt; // Optional the version number of the document the diagnostics are published for.
-	std::vector<Diagnostic> diagnostics = {}; // An array of diagnostic information items.
+	std::vector<Diagnostic> diagnostics = {};  // An array of diagnostic information items.
 };
 // }}}
 
