@@ -273,23 +273,18 @@ void Server::handle_textDocument_definition(MessageId _id, Json::Value const& _a
 	DocumentPosition dpos{};
 	loadTextDocumentPosition(dpos, _args);
 
-	if (optional<Location> const targetRange = gotoDefinition(dpos); targetRange.has_value())
+	Json::Value reply = Json::arrayValue;
+	for (::lsp::Location const& target: gotoDefinition(dpos))
 	{
-		Location const& target = targetRange.value();
 		Json::Value json = Json::objectValue;
-
 		json["uri"] = target.uri;
 		json["range"]["start"]["line"] = target.range.start.line;
 		json["range"]["start"]["character"] = target.range.start.column;
 		json["range"]["end"]["line"] = target.range.end.line;
 		json["range"]["end"]["character"] = target.range.end.column;
-
-		m_client.reply(_id, json);
+		reply.append(json);
 	}
-	else
-	{
-		m_client.error(_id, ErrorCode::UnknownErrorCode, "Definition not found.");
-	}
+	m_client.reply(_id, reply);
 }
 
 void Server::handle_textDocument_highlight(MessageId _id, Json::Value const& _args)

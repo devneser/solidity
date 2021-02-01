@@ -63,7 +63,7 @@ public:
 	void documentContentUpdated(std::string const& _uri, std::optional<int> _version, ::lsp::Range _range, std::string const& _text) override;
 	void documentContentUpdated(std::string const& _uri) override;
 	void documentClosed(std::string const& _uri) override;
-	std::optional<::lsp::Location> gotoDefinition(::lsp::DocumentPosition _position) override;
+	std::vector<::lsp::Location> gotoDefinition(::lsp::DocumentPosition _position) override;
 	std::vector<::lsp::DocumentHighlight> semanticHighlight(::lsp::DocumentPosition _documentPosition) override;
 	std::vector<::lsp::Location> references(::lsp::DocumentPosition _documentPosition) override;
 
@@ -81,7 +81,7 @@ private:
 
 	frontend::ASTNode const* findASTNode(::lsp::Position const& _position, std::string const& _fileName);
 
-	std::optional<::lsp::Range> declarationPosition(frontend::Declaration const* _declaration);
+	std::optional<::lsp::Location> declarationPosition(frontend::Declaration const* _declaration);
 
 	std::vector<::lsp::DocumentHighlight> findAllReferences(
 		frontend::Declaration const* _declaration,

@@ -439,26 +439,25 @@ frontend::ASTNode const* LanguageServer::findASTNode(::lsp::Position const& _pos
 	return closestMatch;
 }
 
-optional<::lsp::Location> LanguageServer::gotoDefinition(::lsp::DocumentPosition _location)
+std::vector<::lsp::Location> LanguageServer::gotoDefinition(::lsp::DocumentPosition _location)
 {
 	auto const file = m_vfs.find(_location.uri);
 	if (!file)
 	{
 		// error(_params.requestId, ErrorCode::InvalidRequest, "File not found in VFS.");
-		return nullopt;
+		return {};
 	}
 
 	// source should be compiled already
 	solAssert(m_compilerStack.get() != nullptr, "");
 
 	auto const sourceName = file->uri().substr(7); // strip "file://"
-
 	auto const sourceNode = findASTNode(_location.position, sourceName);
 	if (!sourceNode)
 	{
 		// error(_params.requestId, ErrorCode::InvalidParams, "Symbol not found.");
 		fprintf(stderr, "Could not infer AST node from given source location.\n");
-		return nullopt;
+		return {};
 	}
 
 	if (auto const importDirective = dynamic_cast<ImportDirective const*>(sourceNode))
@@ -469,7 +468,7 @@ optional<::lsp::Location> LanguageServer::gotoDefinition(::lsp::DocumentPosition
 		if (fpm == m_fileReader->fullPathMapping().end())
 		{
 			fprintf(stderr, "gotoDefinition: (importDirective) full path mapping not found\n");
-			return nullopt; // definition not found
+			return {}; // definition not found
 		}
 
 		::lsp::Location output{};
@@ -481,57 +480,56 @@ optional<::lsp::Location> LanguageServer::gotoDefinition(::lsp::DocumentPosition
 		// For scope members, jump to the naming symbol of the referencing declaration of this member.
 		auto const declaration = n->annotation().referencedDeclaration;
 
-		auto const loc = declarationPosition(declaration);
-		if (!loc.has_value())
-			return nullopt; // definition not found
+		auto const location = declarationPosition(declaration);
+		if (!location.has_value())
+			return {}; // definition not found
 
-		auto const sourceName = declaration->location().source->name();
-		auto const fullSourceName = m_fileReader->fullPathMapping().at(sourceName);
-		::lsp::Location output{};
-		output.range = loc.value();
-		output.uri = "file://" + fullSourceName;
-		return output;
+		return {location.value()};
 	}
 	else if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
 	{
 		// For identifiers, jump to the naming symbol of the definition of this identifier.
-		auto const declaration = !sourceIdentifier->annotation().candidateDeclarations.empty()
-			? sourceIdentifier->annotation().candidateDeclarations.front()
-			: sourceIdentifier->annotation().referencedDeclaration;
+		vector<::lsp::Location> output;
 
-		// TODO: LSP seems to support Location[] as response. => return ref & ALL candidates then.
+		if (auto location = declarationPosition(sourceIdentifier->annotation().referencedDeclaration); location.has_value())
+			output.emplace_back(move(location.value()));
 
-		auto const loc = declarationPosition(declaration);
-		if (!loc.has_value())
-			return nullopt; // definition not found
+		for (auto const declaration: sourceIdentifier->annotation().candidateDeclarations)
+			if (auto location = declarationPosition(declaration); location.has_value())
+				output.emplace_back(move(location.value()));
 
-		::lsp::Location output{};
-		output.range = loc.value();
-		output.uri = "file://" + declaration->location().source->name();
 		return output;
 	}
 	else
 	{
-		fprintf(stderr, "identifier: %s\n", typeid(*sourceIdentifier).name());
-		// LOG: error(_params.requestId, ErrorCode::InvalidParams, "Symbol is not an identifier.");
-		return nullopt;
+		trace("Symbol is not an identifier. "s + typeid(*sourceIdentifier).name());
+		return {};
 	}
 }
 
-optional<::lsp::Range> LanguageServer::declarationPosition(frontend::Declaration const* _declaration)
+optional<::lsp::Location> LanguageServer::declarationPosition(frontend::Declaration const* _declaration)
 {
 	if (!_declaration)
 		return nullopt;
 
 	auto const location = _declaration->nameLocation();
-
 	auto const [startLine, startColumn] = location.source->translatePositionToLineColumn(location.start);
 	auto const [endLine, endColumn] = location.source->translatePositionToLineColumn(location.end);
 
-	return ::lsp::Range{
+	auto const sourceName = _declaration->location().source->name();
+
+	auto output = ::lsp::Location{};
+	if (auto fullPath = m_fileReader->fullPathMapping().find(sourceName); fullPath != m_fileReader->fullPathMapping().end())
+		output.uri = "file://" + fullPath->second;
+	else
+		output.uri = "file://" + sourceName;
+
+	output.range = {
 		{startLine, startColumn},
 		{endLine, endColumn}
 	};
+
+	return output;
 }
 
 std::vector<::lsp::DocumentHighlight> LanguageServer::findAllReferences(frontend::Declaration const* _declaration, SourceUnit const& _sourceUnit)

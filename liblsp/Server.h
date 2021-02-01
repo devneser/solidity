@@ -189,8 +189,9 @@ public:
 	///
 	/// @param _position the cursor position in the current document.
 	///
-	/// @returns specific range of the definition of the referencing symbol or nullopt otherwise.
-	virtual std::optional<Location> gotoDefinition(DocumentPosition /*_position*/) { return std::nullopt; }
+	/// @returns a list of ranges that define the symbol under the current location.
+	/// @returns specific range of the definition of one or more referencing symbol.
+	virtual std::vector<Location> gotoDefinition(DocumentPosition /*_position*/) { return {}; }
 
 	/// Find all semantically equivalent occurrences of the symbol the current cursor is located at.
 	///

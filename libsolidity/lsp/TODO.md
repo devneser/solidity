@@ -1,5 +1,7 @@
 # Milestone Before Merge
 
+- [ ] the documents opened via didOpen should probably also added to fullPathMapping?
+- [ ] make sure remappings are working
 - [ ] REVIEW: test windows resolving file urls in client
 - [ ] QA: file changes: move into lsp::Server out of the solidity lsp
 - [ ] LSP seems to support Location[] as response. Try that!
