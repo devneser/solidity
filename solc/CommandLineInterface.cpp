@@ -957,7 +957,8 @@ General Information)").c_str(),
 			"lsp-port",
 			po::value<string>()->value_name("PORT"),
 			"Defines the TCP port to listen on when solc runs in LSP mode. "
-			"If this option is not specified, stdio will be used instead (default)."
+			"If this option is specified, it will be listened on TCP localhost and the given port. "
+			"Otherwise requests are accepted via stdin instead (default)."
 		)
 	;
 	desc.add(lspModeOptions);
@@ -1763,7 +1764,9 @@ bool CommandLineInterface::serveLSP()
 {
 	auto const lspPortStr = m_args.count("lsp-port") != 0 ? m_args.at("lsp-port").as<string>() : "0"s;
 
-	auto const traceLogger = [](string_view /*_msg*/) {};
+	auto const traceLogger = [](string_view _msg) {
+		fprintf(stderr, "%s\n", string(_msg).c_str());
+	};
 
 	unique_ptr<::lsp::Transport> transport;
 	if (lspPortStr.empty())

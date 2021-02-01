@@ -17,8 +17,6 @@
 // SPDX-License-Identifier: GPL-3.0
 #pragma once
 
-#include <liblsp/Logger.h>
-
 #include <json/value.h>
 
 #include <functional>

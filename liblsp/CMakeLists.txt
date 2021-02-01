@@ -1,5 +1,4 @@
 add_library(lsp
-    Logger.h
     README.md
     Range.h
     Server.cpp

@@ -52,15 +52,16 @@ public:
 	/// @param _logger special logger used for debugging the LSP.
 	explicit LanguageServer(::lsp::Transport& _client, Logger _logger);
 
-	std::vector<boost::filesystem::path>& allowedDirectories() noexcept { return m_allowedDirectories; }
+	//std::vector<boost::filesystem::path>& allowedDirectories() noexcept { return m_allowedDirectories; }
 
 	// Client-to-Server messages
-	::lsp::ServerId initialize(std::string _rootUri, std::map<std::string, std::string> _settings, ::lsp::Trace _trace, std::vector<::lsp::WorkspaceFolder> _workspaceFolders) override;
+	::lsp::ServerId initialize(std::string _rootUri, std::map<std::string, std::string> _settings, std::vector<::lsp::WorkspaceFolder> _workspaceFolders) override;
 	void initialized() override;
 	void shutdown() override;
 	void documentOpened(std::string const& _uri, std::string _languageId, int _documentVersion, std::string _contents) override;
 	void documentContentUpdated(std::string const& _uri, std::optional<int> _documentVersion, std::string const& _fullContentChange) override;
 	void documentContentUpdated(std::string const& _uri, std::optional<int> _version, ::lsp::Range _range, std::string const& _text) override;
+	void documentContentUpdated(std::string const& _uri) override;
 	void documentClosed(std::string const& _uri) override;
 	std::optional<::lsp::Location> gotoDefinition(::lsp::DocumentPosition _position) override;
 	std::vector<::lsp::DocumentHighlight> semanticHighlight(::lsp::DocumentPosition _documentPosition) override;

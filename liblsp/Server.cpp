@@ -67,11 +67,11 @@ bool Server::run()
 			}
 			catch (std::exception const& e)
 			{
-				logError("Unhandled exception caught when handling message. "s + e.what());
+				log("Unhandled exception caught when handling message. "s + e.what());
 			}
 		}
 		else
-			logError("Could not read RPC request.");
+			log("Could not read RPC request.");
 	}
 
 	if (m_shutdownRequested)
@@ -113,17 +113,19 @@ void Server::handle_initializeRequest(MessageId _id, Json::Value const& _args)
 	else if (Json::Value rootPath = _args["rootPath"]; rootPath)
 		rootUri = "file://" + rootPath.asString();
 
-	Trace trace = Trace::Off; // The initial trace setting. If omitted trace is disabled ('off').  // TODO: ^^ should be overridable by the solls CLI param
 	if (Json::Value value = _args["trace"]; value)
 	{
 		string const name = value.asString();
 		if (name == "messages")
-			trace = Trace::Messages;
+			m_trace = Trace::Messages;
 		else if (name == "verbose")
-			trace = Trace::Verbose;
+			m_trace = Trace::Verbose;
 		else if (name == "off")
-			trace = Trace::Off;
+			m_trace = Trace::Off;
+		fprintf(stderr, "initialize: trace set to %d\n", int(m_trace));
 	}
+	else
+		fprintf(stderr, "initialize: trace == %d\n", int(m_trace));
 
 	std::vector<WorkspaceFolder> workspaceFolders; // initial configured workspace folders
 	if (Json::Value folders = _args["workspaceFolders"]; folders)
@@ -143,7 +145,7 @@ void Server::handle_initializeRequest(MessageId _id, Json::Value const& _args)
 	// TODO: ClientCapabilities
 	// ...
 
-	auto const info = initialize(move(rootUri), move(settings), trace, move(workspaceFolders));
+	auto const info = initialize(move(rootUri), move(settings), move(workspaceFolders));
 
 	// {{{ encoding
 	Json::Value jsonReply;
@@ -175,7 +177,7 @@ void Server::handle_initialized(MessageId /*_id*/, Json::Value const& /*_args*/)
 
 void Server::handle_shutdown(MessageId /*_id*/, Json::Value const& /*_args*/)
 {
-	logInfo("Shutdown requested");
+	log("Shutdown requested");
 	m_shutdownRequested = true;
 }
 
@@ -243,6 +245,8 @@ void Server::handle_textDocument_didChange(MessageId _id, Json::Value const& _ar
 
 	// if (!allChanges.empty())
 	// 	documentContentUpdated(uri, version, move(allChanges));
+
+	documentContentUpdated(uri); // tell LSP impl we're done with content updates.
 }
 
 void Server::handle_textDocument_didClose(MessageId /*_id*/, Json::Value const& _args)
@@ -344,13 +348,34 @@ void Server::error(MessageId const& _id, ErrorCode _code, string  const& _messag
 	m_client.error(_id, _code, _message);
 }
 
-void Server::log(MessageType _type, string const& _message)
+void Server::log(string const& _message)
 {
+	if (m_trace < Trace::Messages)
+		return;
+
 	Json::Value json = Json::objectValue;
-	json["type"] = static_cast<int>(_type);
+	json["type"] = static_cast<int>(Trace::Messages);
 	json["message"] = _message;
 
 	m_client.notify("window/logMessage", json);
+
+	if (m_logger)
+		m_logger(_message);
+}
+
+void Server::trace(string const& _message)
+{
+	if (m_trace < Trace::Verbose)
+		return;
+
+	Json::Value json = Json::objectValue;
+	json["type"] = static_cast<int>(Trace::Verbose);
+	json["message"] = _message;
+
+	m_client.notify("window/logMessage", json);
+
+	if (m_logger)
+		m_logger(_message);
 }
 
 void Server::pushDiagnostics(PublishDiagnostics const& _diagnostics)

@@ -17,7 +17,6 @@
 // SPDX-License-Identifier: GPL-3.0
 #pragma once
 
-#include <liblsp/Logger.h>
 #include <liblsp/Transport.h>
 #include <liblsp/Range.h>
 
@@ -109,7 +108,7 @@ struct PublishDiagnostics {
 // }}}
 
 /// Solidity Language Server, managing one LSP client.
-class Server: public Logger // TODO: rethink logging
+class Server
 {
 private:
 	Server(Server const&) = delete;
@@ -142,7 +141,6 @@ public:
 		// LSP: Maybe also client capabilities param?
 		std::string _rootUri,
 		std::map<std::string, std::string> _settings,
-		Trace _trace,
 		std::vector<WorkspaceFolder> _workspaceFolders
 	) = 0;
 
@@ -166,6 +164,9 @@ public:
 	/// @param _documentVersion
 	/// @param _contents
 	virtual void documentContentUpdated(std::string const& /*_uri*/, std::optional<int> /*_version*/, std::string const& /*_fullContentChange*/) {}
+
+	/// Invoked to notify LSP implementation that updates have happened to the given document.
+	virtual void documentContentUpdated(std::string const& /*_uri*/) {}
 
 	/// The given document was partially updated at @p _range with @p _contents.
 	///
@@ -220,7 +221,13 @@ public:
 	/// @param _message the message to send to the client
 	void error(MessageId const& _id, ErrorCode, std::string const& _message);
 
-	void log(MessageType _type, std::string const& _message) override; // TODO: rethink logging
+	/// Logs a message.
+	void log(std::string const& _message);
+	/// Logs a verbose message.
+	void trace(std::string const& _message);
+
+	Trace trace() const noexcept { return m_trace; }
+	void setTrace(Trace _trace) { m_trace = _trace; }
 
 protected:
 	Transport& client() noexcept { return m_client; }
@@ -247,6 +254,7 @@ private:
 	HandlerMap m_handlers;
 	bool m_shutdownRequested = false;
 	bool m_exitRequested = false;
+	::lsp::Trace m_trace = ::lsp::Trace::Off;
 	std::function<void(std::string_view)> m_logger;
 };
 

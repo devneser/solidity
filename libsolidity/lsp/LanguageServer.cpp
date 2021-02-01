@@ -151,17 +151,15 @@ LanguageServer::LanguageServer(::lsp::Transport& _client, Logger _logger):
 
 void LanguageServer::shutdown()
 {
-	logInfo("LanguageServer: shutdown requested");
+	log("LanguageServer: shutdown requested");
 }
 
 ::lsp::ServerId LanguageServer::initialize(
 	string _rootUri,
 	map<string, string> _settings,
-	::lsp::Trace _trace,
 	vector<::lsp::WorkspaceFolder> _workspaceFolders
 )
 {
-	(void) _trace; // TODO: debuglog based on this config
 	(void) _settings; // TODO: user settings (such as EVM version)
 
 #if !defined(NDEBUG)
@@ -179,7 +177,7 @@ void LanguageServer::shutdown()
 	}
 
 #if !defined(NDEBUG)
-	logMessage(msg.str());
+	log(msg.str());
 #endif
 
 	return {"solc", string(solidity::frontend::VersionNumber)};
@@ -189,12 +187,12 @@ void LanguageServer::initialized()
 {
 	// NB: this means the client has finished initializing. Now we could maybe start sending
 	// events to the client.
-	logMessage("LanguageServer: Client initialized");
+	log("LanguageServer: Client initialized");
 }
 
 void LanguageServer::documentOpened(string const& _uri, string _languageId, int _documentVersion, std::string _contents)
 {
-	logMessage("LanguageServer: Opening document: " + _uri);
+	log("LanguageServer: Opening document: " + _uri);
 
 	::lsp::vfs::File const& file = m_vfs.insert(
 		_uri,
@@ -213,7 +211,7 @@ void LanguageServer::documentContentUpdated(std::string const& _uri, std::option
 	auto file = m_vfs.find(_uri);
 	if (!file)
 	{
-		logError("LanguageServer: File to be modified not opened \"" + _uri + "\"");
+		log("LanguageServer: File to be modified not opened \"" + _uri + "\"");
 		return;
 	}
 
@@ -223,11 +221,19 @@ void LanguageServer::documentContentUpdated(std::string const& _uri, std::option
 #if !defined(NDEBUG)
 	ostringstream str;
 	str << "did change: " << _range << " for '" << _text << "'";
-	logMessage(str.str());
+	trace(str.str());
 #endif
 	file->modify(_range, _text);
 
-	validate(*file);
+}
+
+void LanguageServer::documentContentUpdated(string const& _uri)
+{
+	auto file = m_vfs.find(_uri);
+	if (!file)
+		log("LanguageServer: File to be modified not opened \"" + _uri + "\"");
+	else
+		validate(*file);
 }
 
 void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _version, string const& _fullContentChange)
@@ -235,7 +241,7 @@ void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _v
 	auto file = m_vfs.find(_uri);
 	if (!file)
 	{
-		logError("LanguageServer: File to be modified not opened \"" + _uri + "\"");
+		log("LanguageServer: File to be modified not opened \"" + _uri + "\"");
 		return;
 	}
 
@@ -249,7 +255,7 @@ void LanguageServer::documentContentUpdated(string const& _uri, optional<int> _v
 
 void LanguageServer::documentClosed(string const& _uri)
 {
-	logMessage("LanguageServer: didClose: " + _uri);
+	log("LanguageServer: didClose: " + _uri);
 }
 
 void LanguageServer::validateAll()
