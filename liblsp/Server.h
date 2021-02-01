@@ -234,7 +234,6 @@ protected:
 
 	void handle_cancelRequest(MessageId _id, Json::Value const& _args);
 	void handle_initializeRequest(MessageId _id, Json::Value const& _args);
-	void handle_initialized(MessageId _id, Json::Value const& _args);
 	void handle_exit(MessageId _id, Json::Value const& _args);
 	void handle_shutdown(MessageId _id, Json::Value const& _args);
 	void handle_textDocument_didOpen(MessageId _id, Json::Value const& _args);

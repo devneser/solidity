@@ -1,5 +1,12 @@
 # Milestone Before Merge
 
+- [ ] REVIEW: test windows resolving file urls in client
+- [ ] QA: file changes: move into lsp::Server out of the solidity lsp
+- [ ] LSP seems to support Location[] as response. Try that!
+- [ ] document highlight on enum values
+- [ ] cursor on a function def name -> find all refs -> yields no calls to this function
+- [ ] Hover support (showing underlying type + formatted Natspec documentation)
+- [ ] configurable compiler settings
 - [x] compiler diagnostics
 - [x] goto definition
 - [x] add proper name locations in AST (in separate pr)
@@ -7,19 +14,7 @@
 - [x] find all references
 - [x] extracting FileReader into own pr for shared use in solc
 - [x] migrating lsp into solc
-
 - [x] early return in fn bodies
-- [ ] LSP seems to support Location[] as response. Try that!
-- [ ] BUG: cursor on a function def name -> find all refs -> yields no calls to this function
-
-- [ ] Hover support (showing underlying type + formatted Natspec documentation)
-- [ ] configurable compiler settings
-
-### PR feedback TODO
-
-- [ ] test windows resolving file urls in client
-- [ ] file changes: move into lsp::Server out of the solidity lsp
-- [ ] use early return instead of nested if statements
 
 # Postponed for after merge (separate PR)
 

@@ -31,12 +31,16 @@ using namespace std::string_literals;
 
 namespace lsp {
 
+// LSP specification can be found at:
+//
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/
+
 Server::Server(Transport& _client, std::function<void(std::string_view)> _logger):
 	m_client{_client},
 	m_handlers{
 		{"cancelRequest", bind(&Server::handle_cancelRequest, this, _1, _2)},
 		{"initialize", bind(&Server::handle_initializeRequest, this, _1, _2)},
-		{"initialized", bind(&Server::handle_initialized, this, _1, _2)},
+		{"initialized", [this](auto, auto) { initialized(); }},
 		{"shutdown", bind(&Server::handle_shutdown, this, _1, _2)},
 		{"textDocument/didOpen", bind(&Server::handle_textDocument_didOpen, this, _1, _2)},
 		{"textDocument/didChange", bind(&Server::handle_textDocument_didChange, this, _1, _2)},
@@ -122,10 +126,7 @@ void Server::handle_initializeRequest(MessageId _id, Json::Value const& _args)
 			m_trace = Trace::Verbose;
 		else if (name == "off")
 			m_trace = Trace::Off;
-		fprintf(stderr, "initialize: trace set to %d\n", int(m_trace));
 	}
-	else
-		fprintf(stderr, "initialize: trace == %d\n", int(m_trace));
 
 	std::vector<WorkspaceFolder> workspaceFolders; // initial configured workspace folders
 	if (Json::Value folders = _args["workspaceFolders"]; folders)
@@ -143,36 +144,29 @@ void Server::handle_initializeRequest(MessageId _id, Json::Value const& _args)
 	map<string, string> settings{}; // should then be passed to initialize!
 
 	// TODO: ClientCapabilities
-	// ...
+	// ... Do we actually care? Not in the initial PR.
 
 	auto const info = initialize(move(rootUri), move(settings), move(workspaceFolders));
 
 	// {{{ encoding
-	Json::Value jsonReply;
+	Json::Value replyArgs;
 
 	if (!info.serverName.empty())
-		jsonReply["serverInfo"]["name"] = info.serverName;
+		replyArgs["serverInfo"]["name"] = info.serverName;
 
 	if (!info.serverVersion.empty())
-		jsonReply["serverInfo"]["version"] = info.serverVersion;
+		replyArgs["serverInfo"]["version"] = info.serverVersion;
 
-	jsonReply["hoverProvider"] = true;
-	jsonReply["capabilities"]["hoverProvider"] = true;
-	jsonReply["capabilities"]["textDocumentSync"]["openClose"] = true;
-	jsonReply["capabilities"]["textDocumentSync"]["change"] = true;
-	jsonReply["capabilities"]["definitionProvider"] = true;
-	jsonReply["capabilities"]["documentHighlightProvider"] = true;
-	jsonReply["capabilities"]["referencesProvider"] = true;
+	replyArgs["hoverProvider"] = true;
+	replyArgs["capabilities"]["hoverProvider"] = true;
+	replyArgs["capabilities"]["textDocumentSync"]["openClose"] = true;
+	replyArgs["capabilities"]["textDocumentSync"]["change"] = 2; // 0=none, 1=full, 2=incremental
+	replyArgs["capabilities"]["definitionProvider"] = true;
+	replyArgs["capabilities"]["documentHighlightProvider"] = true;
+	replyArgs["capabilities"]["referencesProvider"] = true;
 
-	m_client.reply(_id, jsonReply);
+	m_client.reply(_id, replyArgs);
 	// }}}
-}
-
-void Server::handle_initialized(MessageId /*_id*/, Json::Value const& /*_args*/)
-{
-	// nothing to decode
-	initialized();
-	// nothing to encode
 }
 
 void Server::handle_shutdown(MessageId /*_id*/, Json::Value const& /*_args*/)
@@ -186,10 +180,10 @@ void Server::handle_exit(MessageId _id, Json::Value const& /*_args*/)
 	m_exitRequested = true;
 	auto const exitCode = m_shutdownRequested ? 0 : 1;
 
-	Json::Value jsonReply = Json::intValue;
-	jsonReply = exitCode;
+	Json::Value replyArgs = Json::intValue;
+	replyArgs = exitCode;
 
-	m_client.reply(_id, jsonReply);
+	m_client.reply(_id, replyArgs);
 }
 
 void Server::handle_cancelRequest(MessageId, Json::Value const&)
@@ -221,7 +215,8 @@ void Server::handle_textDocument_didChange(MessageId _id, Json::Value const& _ar
 	// TODO: in the longer run, even move the VFS handling in here, as content updates are always
 	// equivalent regardless of actual lsp implementation.?
 
-	for (Json::Value jsonContentChange: _args["contentChanges"])
+	auto const contentChanges = _args["contentChanges"];
+	for (Json::Value jsonContentChange: contentChanges)
 	{
 		if (jsonContentChange.isObject() && jsonContentChange["range"])
 		{
@@ -243,10 +238,8 @@ void Server::handle_textDocument_didChange(MessageId _id, Json::Value const& _ar
 		}
 	}
 
-	// if (!allChanges.empty())
-	// 	documentContentUpdated(uri, version, move(allChanges));
-
-	documentContentUpdated(uri); // tell LSP impl we're done with content updates.
+	if (!contentChanges.empty())
+		documentContentUpdated(uri); // tell LSP impl we're done with content updates.
 }
 
 void Server::handle_textDocument_didClose(MessageId /*_id*/, Json::Value const& _args)
@@ -304,7 +297,7 @@ void Server::handle_textDocument_highlight(MessageId _id, Json::Value const& _ar
 	DocumentPosition dpos{};
 	loadTextDocumentPosition(dpos, _args);
 
-	Json::Value jsonReply = Json::arrayValue;
+	Json::Value replyArgs = Json::arrayValue;
 	for (DocumentHighlight const& highlight: semanticHighlight(dpos))
 	{
 		Json::Value item = Json::objectValue;
@@ -317,9 +310,9 @@ void Server::handle_textDocument_highlight(MessageId _id, Json::Value const& _ar
 		if (highlight.kind != DocumentHighlightKind::Unspecified)
 			item["kind"] = static_cast<int>(highlight.kind);
 
-		jsonReply.append(item);
+		replyArgs.append(item);
 	}
-	m_client.reply(_id, jsonReply);
+	m_client.reply(_id, replyArgs);
 }
 
 void Server::handle_textDocument_references(MessageId _id, Json::Value const& _args)
@@ -327,7 +320,7 @@ void Server::handle_textDocument_references(MessageId _id, Json::Value const& _a
 	DocumentPosition dpos{};
 	loadTextDocumentPosition(dpos, _args);
 
-	Json::Value jsonReply = Json::arrayValue;
+	Json::Value replyArgs = Json::arrayValue;
 	for (Location const& location: references(dpos))
 	{
 		Json::Value item = Json::objectValue;
@@ -338,9 +331,9 @@ void Server::handle_textDocument_references(MessageId _id, Json::Value const& _a
 		item["range"]["end"]["character"] = location.range.end.column;
 		item["uri"] = location.uri;
 
-		jsonReply.append(item);
+		replyArgs.append(item);
 	}
-	m_client.reply(_id, jsonReply);
+	m_client.reply(_id, replyArgs);
 }
 
 void Server::error(MessageId const& _id, ErrorCode _code, string  const& _message)
