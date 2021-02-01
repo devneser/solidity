@@ -40,6 +40,7 @@ set(libsolutil_sources
     libsolutil/StringUtils.cpp
     libsolutil/SwarmHash.cpp
     libsolutil/UTF8.cpp
+    libsolutil/Uri.cpp
     libsolutil/Whiskers.cpp
 )
 detect_stray_source_files("${libsolutil_sources}" "libsolutil/")

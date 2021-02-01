@@ -33,6 +33,8 @@ set(sources
 	SwarmHash.h
 	UTF8.cpp
 	UTF8.h
+	Uri.cpp
+	Uri.h
 	vector_ref.h
 	Views.h
 	Visitor.h
