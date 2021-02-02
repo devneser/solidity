@@ -16,7 +16,6 @@
 */
 // SPDX-License-Identifier: GPL-3.0
 #include <liblsp/TcpTransport.h>
-#include <liblsp/TcpTransport.h>
 
 namespace lsp {
 

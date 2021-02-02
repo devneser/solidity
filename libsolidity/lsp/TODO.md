@@ -1,11 +1,14 @@
 # Milestone Before Merge
 
-- [ ] the documents opened via didOpen should probably also added to fullPathMapping?
+- [ ] findAllReferences: include type names (not just vars / members)
+- [ ] findAllReferences: marks the whole `Enum.Value` instead of just `Value` keep or change?
+- [ ] AST: add location for the actual type names? (so that every type X can be highlighted, if X is non-trivial)
+
+- [ ] Q: the documents opened via didOpen should probably also added to fullPathMapping?
 - [ ] make sure remappings are working
 - [ ] REVIEW: test windows resolving file urls in client
 - [ ] QA: file changes: move into lsp::Server out of the solidity lsp
 - [ ] LSP seems to support Location[] as response. Try that!
-- [ ] document highlight on enum values
 - [ ] cursor on a function def name -> find all refs -> yields no calls to this function
 - [ ] Hover support (showing underlying type + formatted Natspec documentation)
 - [ ] configurable compiler settings

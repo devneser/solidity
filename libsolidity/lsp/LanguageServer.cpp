@@ -96,6 +96,14 @@ public:
 
 	bool visit(Identifier const& _identifier) override
 	{
+		// TODO: also check for candidateDeclarations and overloadedDeclarations.
+		auto ref = _identifier.annotation().referencedDeclaration;
+		fprintf(stderr, "ReferenceCollector.visit(Identifier): %s (%s)\n",
+				_identifier.name().c_str(),
+				_identifier.annotation().referencedDeclaration
+					? typeid(*ref).name()
+					: "no type");
+
 		if (auto const declaration = _identifier.annotation().referencedDeclaration; declaration)
 			if (declaration == &m_declaration)
 				addReference(_identifier.location(), "(identifier)");
@@ -103,7 +111,23 @@ public:
 		return visitNode(_identifier);
 	}
 
-	void addReference(SourceLocation const& _location, char const* msg = "")
+	bool visit(MemberAccess const& _memberAccess) override
+	{
+		// TODO: MemberAccess.annotation.referencedDeclaration is always NULL, why?
+		// It should be EnumValue for an enum value.
+		fprintf(stderr, "ReferenceCollector.MemberAccess(%s): %s\n",
+				_memberAccess.annotation().referencedDeclaration
+					? _memberAccess.annotation().referencedDeclaration->name().c_str()
+					: "null",
+				_memberAccess.memberName().c_str());
+
+		if (_memberAccess.annotation().referencedDeclaration == &m_declaration)
+			addReference(_memberAccess.location(), "memberAccess("s + _memberAccess.memberName() + ")"s);
+
+		return visitNode(_memberAccess);
+	}
+
+	void addReference(SourceLocation const& _location, string msg = "")
 	{
 		auto const [startLine, startColumn] = _location.source->translatePositionToLineColumn(_location.start);
 		auto const [endLine, endColumn] = _location.source->translatePositionToLineColumn(_location.end);
@@ -113,7 +137,7 @@ public:
 		};
 
 		fprintf(stderr, " -> found reference %s at %d:%d .. %d:%d\n",
-			msg,
+			msg.c_str(),
 			startLine, startColumn,
 			endLine, endColumn
 		);
@@ -125,10 +149,9 @@ public:
 		m_result.emplace_back(highlight);
 	}
 
-	// TODO: MemberAccess
-
 	bool visitNode(ASTNode const& _node) override
 	{
+		fprintf(stderr, "ReferenceCollector.visitNode: %s\n", typeid(_node).name());
 		if (&_node == &m_declaration)
 		{
 			if (auto const* decl = dynamic_cast<Declaration const*>(&_node))
@@ -140,6 +163,93 @@ public:
 		return true;
 	}
 };
+
+#if 0
+class SameTypeCollector: public frontend::ASTConstVisitor
+{
+private:
+	Type const& m_type;
+	std::vector<::lsp::DocumentHighlight> m_result;
+
+public:
+	explicit SameTypeCollector(Type const& _type):
+		m_type{_type}
+	{
+		fprintf(stderr, "SameTypeCollector.ctor: type: %s\n", m_type.toString(false).c_str());
+	}
+
+	std::vector<::lsp::DocumentHighlight> take() { return std::move(m_result); }
+
+	static std::vector<::lsp::DocumentHighlight> collect(frontend::Declaration const& _declaration, frontend::ASTNode const& _ast)
+	{
+		if (_declaration.type())
+		{
+			auto collector = SameTypeCollector(*_declaration.type());
+			_ast.accept(collector);
+			return collector.take();
+		}
+		return {};
+	}
+
+	bool visit(Identifier const& _identifier) override
+	{
+		if (auto const declaration = _identifier.annotation().referencedDeclaration; declaration)
+			if (declaration->type() == &m_type)
+				addReference(_identifier.location(), "ref: " + _identifier.name());
+
+		for (auto const declaration: _identifier.annotation().candidateDeclarations)
+			if (declaration->type() == &m_type)
+				addReference(_identifier.location(), "candidate: " + _identifier.name());
+
+		for (auto const declaration: _identifier.annotation().overloadedDeclarations)
+			if (declaration->type() == &m_type)
+				addReference(_identifier.location(), "overloaded: " + _identifier.name());
+
+		return visitNode(_identifier);
+	}
+
+	void addReference(SourceLocation const& _location, string msg = "")
+	{
+		auto const [startLine, startColumn] = _location.source->translatePositionToLineColumn(_location.start);
+		auto const [endLine, endColumn] = _location.source->translatePositionToLineColumn(_location.end);
+		auto const locationRange = ::lsp::Range{
+			{startLine, startColumn},
+			{endLine, endColumn}
+		};
+
+		fprintf(stderr, " -> found reference %s at %d:%d .. %d:%d\n",
+			msg.c_str(),
+			startLine, startColumn,
+			endLine, endColumn
+		);
+
+		auto highlight = ::lsp::DocumentHighlight{};
+		highlight.range = locationRange;
+		highlight.kind = ::lsp::DocumentHighlightKind::Text; // TODO: are you being read or written to?
+
+		m_result.emplace_back(highlight);
+	}
+
+	// bool visit(MemberAccess const& _memberAccess) override
+	// {
+	// 	// TODO: is this right to see if both match?
+	// 	if (_memberAccess.annotation().type == &m_type)
+	// 		addReference(_memberAccess.location(), "(MemberAccess)");
+    //
+	// 	return true;
+	// }
+
+	bool visitNode(ASTNode const& _node) override
+	{
+		if (auto const declaration = dynamic_cast<Declaration const*>(&_node); declaration != nullptr)
+			if (declaration->type() == &m_type)
+				if (declaration->nameLocation().source)
+					addReference(declaration->nameLocation(), "(visitNode)");
+
+		return true;
+	}
+};
+#endif
 
 } // }}} end helpers
 
@@ -609,6 +719,12 @@ vector<::lsp::Location> LanguageServer::references(::lsp::DocumentPosition _docu
 		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
 		findAllReferences(varDecl, sourceUnit, _documentPosition.uri, output);
 	}
+	else if (auto const memberAccess = dynamic_cast<MemberAccess const*>(sourceNode); memberAccess != nullptr)
+	{
+		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
+		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
+		findAllReferences(varDecl, sourceUnit, _documentPosition.uri, output);
+	}
 	else
 	{
 		fprintf(stderr, "not an identifier\n");
@@ -640,32 +756,75 @@ vector<::lsp::DocumentHighlight> LanguageServer::semanticHighlight(::lsp::Docume
 	auto const sourceNode = findASTNode(_documentPosition.position, sourceName);
 	if (!sourceNode)
 	{
-		fprintf(stderr, "AST node not found\n");
+		fprintf(stderr, "semanticHighlight: AST node not found\n");
 		// error(_documentPosition.requestId, ErrorCode::InvalidParams, "Symbol not found.");
 		return {};
 	}
 
+	fprintf(stderr, "semanticHighlight: Source Node(%s): %s\n", typeid(*sourceNode).name(), sourceNode->location().text().c_str());
+
 	auto output = vector<::lsp::DocumentHighlight>{};
 	if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
 	{
-		auto const declaration = !sourceIdentifier->annotation().candidateDeclarations.empty()
-			? sourceIdentifier->annotation().candidateDeclarations.front()
-			: sourceIdentifier->annotation().referencedDeclaration;
-
 		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
 		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
-		output = findAllReferences(declaration, sourceUnit);
+
+		vector<::lsp::DocumentHighlight> output;
+
+		if (sourceIdentifier->annotation().referencedDeclaration)
+			output += findAllReferences(sourceIdentifier->annotation().referencedDeclaration, sourceUnit);
+
+		for (Declaration const* declaration: sourceIdentifier->annotation().candidateDeclarations)
+			output += findAllReferences(declaration, sourceUnit);
+
+		for (Declaration const* declaration: sourceIdentifier->annotation().overloadedDeclarations)
+			output += findAllReferences(declaration, sourceUnit);
+
+		return output;
 	}
 	else if (auto const varDecl = dynamic_cast<VariableDeclaration const*>(sourceNode); varDecl != nullptr)
 	{
-		fprintf(stderr, "AST node is vardecl\n");
+		fprintf(stderr, "semanticHighlight: AST node is vardecl\n");
 		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
 		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
 		output = findAllReferences(varDecl, sourceUnit);
 	}
+	else if (auto const memberAccess = dynamic_cast<MemberAccess const*>(sourceNode); memberAccess != nullptr)
+	{
+		// TODO: find out if the member access is an EnumValue
+		TypePointer const type = memberAccess->expression().annotation().type;
+		fprintf(stderr, "semanticHighlight: memberAccess.type: %s\n", type ? typeid(*type).name() : "NULL");
+		if (auto const ttype = dynamic_cast<TypeType const*>(type))
+		{
+			auto const memberName = memberAccess->memberName();
+
+			auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
+			frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
+
+			if (auto const enumType = dynamic_cast<EnumType const*>(ttype->actualType()))
+			{
+				auto const& enumMembers = enumType->enumDefinition().members();
+
+				// find the definition
+				for (auto const& enumMember: enumMembers)
+					if (enumMember->name() == memberName)
+						output += findAllReferences(enumMember.get(), sourceUnit);
+
+				// find uses of the enum value
+			}
+
+			fprintf(stderr, "semanticHighlight: memberAccess.ttype(%s): %s\n", typeid(*ttype).name(), ttype->toString(false).c_str());
+		}
+		// if (auto const tt = dynamic_cast<TypeType const*>(type))
+		// {
+		// 	auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
+		// 	frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
+		// 	output = findAllReferences(declaration, sourceUnit);
+		// }
+	}
 	else
 	{
-		fprintf(stderr, "not an identifier\n");
+		fprintf(stderr, "semanticHighlight: not an identifier\n");
 	}
 
 	return output;

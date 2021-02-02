@@ -71,7 +71,7 @@ optional<Json::Value> JSONTransport::receive()
 	if (!errs.empty())
 		return nullopt; // JsonParseError
 
-	traceMessage(jsonMessage, "Request");
+	//traceMessage(jsonMessage, "Request");
 
 	return {jsonMessage};
 }
@@ -121,7 +121,7 @@ void JSONTransport::send(Json::Value const& _json)
 	m_output << jsonString;
 
 	m_output.flush();
-	traceMessage(_json, "Response");
+	//traceMessage(_json, "Response");
 }
 
 void JSONTransport::traceMessage(Json::Value const& _message, std::string_view _title)
