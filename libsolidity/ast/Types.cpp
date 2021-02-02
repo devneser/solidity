@@ -457,18 +457,18 @@ bool AddressType::operator==(Type const& _other) const
 MemberList::MemberMap AddressType::nativeMembers(ASTNode const*) const
 {
 	MemberList::MemberMap members = {
-		{"balance", TypeProvider::uint256()},
-		{"code", TypeProvider::array(DataLocation::Memory)},
-		{"codehash",  TypeProvider::fixedBytes(32)},
-		{"call", TypeProvider::function(strings{"bytes memory"}, strings{"bool", "bytes memory"}, FunctionType::Kind::BareCall, false, StateMutability::Payable)},
-		{"callcode", TypeProvider::function(strings{"bytes memory"}, strings{"bool", "bytes memory"}, FunctionType::Kind::BareCallCode, false, StateMutability::Payable)},
-		{"delegatecall", TypeProvider::function(strings{"bytes memory"}, strings{"bool", "bytes memory"}, FunctionType::Kind::BareDelegateCall, false, StateMutability::NonPayable)},
-		{"staticcall", TypeProvider::function(strings{"bytes memory"}, strings{"bool", "bytes memory"}, FunctionType::Kind::BareStaticCall, false, StateMutability::View)}
+		{"balance", TypeProvider::uint256(), nullptr},
+		{"code", TypeProvider::array(DataLocation::Memory), nullptr},
+		{"codehash",  TypeProvider::fixedBytes(32), nullptr},
+		{"call", TypeProvider::function(strings{"bytes memory"}, strings{"bool", "bytes memory"}, FunctionType::Kind::BareCall, false, StateMutability::Payable), nullptr},
+		{"callcode", TypeProvider::function(strings{"bytes memory"}, strings{"bool", "bytes memory"}, FunctionType::Kind::BareCallCode, false, StateMutability::Payable), nullptr},
+		{"delegatecall", TypeProvider::function(strings{"bytes memory"}, strings{"bool", "bytes memory"}, FunctionType::Kind::BareDelegateCall, false, StateMutability::NonPayable), nullptr},
+		{"staticcall", TypeProvider::function(strings{"bytes memory"}, strings{"bool", "bytes memory"}, FunctionType::Kind::BareStaticCall, false, StateMutability::View), nullptr}
 	};
 	if (m_stateMutability == StateMutability::Payable)
 	{
-		members.emplace_back(MemberList::Member{"send", TypeProvider::function(strings{"uint"}, strings{"bool"}, FunctionType::Kind::Send, false, StateMutability::NonPayable)});
-		members.emplace_back(MemberList::Member{"transfer", TypeProvider::function(strings{"uint"}, strings(), FunctionType::Kind::Transfer, false, StateMutability::NonPayable)});
+		members.emplace_back(MemberList::Member::builtin("send", TypeProvider::function(strings{"uint"}, strings{"bool"}, FunctionType::Kind::Send, false, StateMutability::NonPayable)));
+		members.emplace_back(MemberList::Member::builtin("transfer", TypeProvider::function(strings{"uint"}, strings(), FunctionType::Kind::Transfer, false, StateMutability::NonPayable)));
 	}
 	return members;
 }
@@ -1305,7 +1305,7 @@ TypeResult FixedBytesType::binaryOperatorResult(Token _operator, Type const* _ot
 
 MemberList::MemberMap FixedBytesType::nativeMembers(ASTNode const*) const
 {
-	return MemberList::MemberMap{MemberList::Member{"length", TypeProvider::uint(8)}};
+	return MemberList::MemberMap{MemberList::Member::builtin("length", TypeProvider::uint(8))};
 }
 
 string FixedBytesType::richIdentifier() const
@@ -1792,7 +1792,7 @@ MemberList::MemberMap ArrayType::nativeMembers(ASTNode const*) const
 	MemberList::MemberMap members;
 	if (!isString())
 	{
-		members.emplace_back("length", TypeProvider::uint256());
+		members.emplace_back("length", TypeProvider::uint256(), nullptr);
 		if (isDynamicallySized() && location() == DataLocation::Storage)
 		{
 			members.emplace_back("push", TypeProvider::function(
@@ -1801,21 +1801,21 @@ MemberList::MemberMap ArrayType::nativeMembers(ASTNode const*) const
 				strings{},
 				strings{string()},
 				isByteArray() ? FunctionType::Kind::ByteArrayPush : FunctionType::Kind::ArrayPush
-			));
+			), nullptr);
 			members.emplace_back("push", TypeProvider::function(
 				TypePointers{baseType()},
 				TypePointers{},
 				strings{string()},
 				strings{},
 				isByteArray() ? FunctionType::Kind::ByteArrayPush : FunctionType::Kind::ArrayPush
-			));
+			), nullptr);
 			members.emplace_back("pop", TypeProvider::function(
 				TypePointers{},
 				TypePointers{},
 				strings{},
 				strings{},
 				FunctionType::Kind::ArrayPop
-			));
+			), nullptr);
 		}
 	}
 	return members;
@@ -3133,7 +3133,7 @@ MemberList::MemberMap FunctionType::nativeMembers(ASTNode const* _scope) const
 	{
 	case Kind::Declaration:
 		if (declaration().isPartOfExternalInterface())
-			return {{"selector", TypeProvider::fixedBytes(4)}};
+			return {{"selector", TypeProvider::fixedBytes(4), nullptr}};
 		else
 			return MemberList::MemberMap();
 	case Kind::Internal:
@@ -3148,7 +3148,7 @@ MemberList::MemberMap FunctionType::nativeMembers(ASTNode const* _scope) const
 		{
 			auto const* contractScope = dynamic_cast<ContractDefinition const*>(_scope);
 			solAssert(contractScope && contractScope->derivesFrom(*functionDefinition->annotation().contract), "");
-			return {{"selector", TypeProvider::fixedBytes(4)}};
+			return {{"selector", TypeProvider::fixedBytes(4), nullptr}};
 		}
 		else
 			return MemberList::MemberMap();
@@ -3162,8 +3162,8 @@ MemberList::MemberMap FunctionType::nativeMembers(ASTNode const* _scope) const
 		MemberList::MemberMap members;
 		if (m_kind == Kind::External)
 		{
-			members.emplace_back("selector", TypeProvider::fixedBytes(4));
-			members.emplace_back("address", TypeProvider::address());
+			members.emplace_back("selector", TypeProvider::fixedBytes(4), nullptr);
+			members.emplace_back("address", TypeProvider::address(), nullptr);
 		}
 		if (m_kind != Kind::BareDelegateCall)
 		{
@@ -3182,7 +3182,8 @@ MemberList::MemberMap FunctionType::nativeMembers(ASTNode const* _scope) const
 						m_gasSet,
 						m_valueSet,
 						m_saltSet
-					)
+					),
+					nullptr
 				);
 		}
 		if (m_kind != Kind::Creation)
@@ -3200,7 +3201,8 @@ MemberList::MemberMap FunctionType::nativeMembers(ASTNode const* _scope) const
 					m_gasSet,
 					m_valueSet,
 					m_saltSet
-				)
+				),
+				nullptr
 			);
 		return members;
 	}
@@ -3214,7 +3216,7 @@ MemberList::MemberMap FunctionType::nativeMembers(ASTNode const* _scope) const
 			auto const* contract = dynamic_cast<ContractDefinition const*>(m_declaration->scope());
 			solAssert(contract, "");
 			solAssert(contract->isLibrary(), "");
-			return {{"selector", TypeProvider::fixedBytes(4)}};
+			return {{"selector", TypeProvider::fixedBytes(4), nullptr}};
 		}
 		return {};
 	}
@@ -3845,26 +3847,26 @@ MemberList::MemberMap MagicType::nativeMembers(ASTNode const*) const
 	{
 	case Kind::Block:
 		return MemberList::MemberMap({
-			{"coinbase", TypeProvider::payableAddress()},
-			{"timestamp", TypeProvider::uint256()},
-			{"blockhash", TypeProvider::function(strings{"uint"}, strings{"bytes32"}, FunctionType::Kind::BlockHash, false, StateMutability::View)},
-			{"difficulty", TypeProvider::uint256()},
-			{"number", TypeProvider::uint256()},
-			{"gaslimit", TypeProvider::uint256()},
-			{"chainid", TypeProvider::uint256()}
+			{"coinbase", TypeProvider::payableAddress(), nullptr},
+			{"timestamp", TypeProvider::uint256(), nullptr},
+			{"blockhash", TypeProvider::function(strings{"uint"}, strings{"bytes32"}, FunctionType::Kind::BlockHash, false, StateMutability::View), nullptr},
+			{"difficulty", TypeProvider::uint256(), nullptr},
+			{"number", TypeProvider::uint256(), nullptr},
+			{"gaslimit", TypeProvider::uint256(), nullptr},
+			{"chainid", TypeProvider::uint256(), nullptr}
 		});
 	case Kind::Message:
 		return MemberList::MemberMap({
-			{"sender", TypeProvider::address()},
-			{"gas", TypeProvider::uint256()},
-			{"value", TypeProvider::uint256()},
-			{"data", TypeProvider::array(DataLocation::CallData)},
-			{"sig", TypeProvider::fixedBytes(4)}
+			{"sender", TypeProvider::address(), nullptr},
+			{"gas", TypeProvider::uint256(), nullptr},
+			{"value", TypeProvider::uint256(), nullptr},
+			{"data", TypeProvider::array(DataLocation::CallData), nullptr},
+			{"sig", TypeProvider::fixedBytes(4), nullptr}
 		});
 	case Kind::Transaction:
 		return MemberList::MemberMap({
-			{"origin", TypeProvider::address()},
-			{"gasprice", TypeProvider::uint256()}
+			{"origin", TypeProvider::address(), nullptr},
+			{"gasprice", TypeProvider::uint256(), nullptr}
 		});
 	case Kind::ABI:
 		return MemberList::MemberMap({
@@ -3876,7 +3878,7 @@ MemberList::MemberMap MagicType::nativeMembers(ASTNode const*) const
 				FunctionType::Kind::ABIEncode,
 				true,
 				StateMutability::Pure
-			)},
+			), nullptr},
 			{"encodePacked", TypeProvider::function(
 				TypePointers{},
 				TypePointers{TypeProvider::array(DataLocation::Memory)},
@@ -3885,7 +3887,7 @@ MemberList::MemberMap MagicType::nativeMembers(ASTNode const*) const
 				FunctionType::Kind::ABIEncodePacked,
 				true,
 				StateMutability::Pure
-			)},
+			), nullptr},
 			{"encodeWithSelector", TypeProvider::function(
 				TypePointers{TypeProvider::fixedBytes(4)},
 				TypePointers{TypeProvider::array(DataLocation::Memory)},
@@ -3894,7 +3896,7 @@ MemberList::MemberMap MagicType::nativeMembers(ASTNode const*) const
 				FunctionType::Kind::ABIEncodeWithSelector,
 				true,
 				StateMutability::Pure
-			)},
+			), nullptr},
 			{"encodeWithSignature", TypeProvider::function(
 				TypePointers{TypeProvider::array(DataLocation::Memory, true)},
 				TypePointers{TypeProvider::array(DataLocation::Memory)},
@@ -3903,7 +3905,7 @@ MemberList::MemberMap MagicType::nativeMembers(ASTNode const*) const
 				FunctionType::Kind::ABIEncodeWithSignature,
 				true,
 				StateMutability::Pure
-			)},
+			), nullptr},
 			{"decode", TypeProvider::function(
 				TypePointers(),
 				TypePointers(),
@@ -3912,7 +3914,7 @@ MemberList::MemberMap MagicType::nativeMembers(ASTNode const*) const
 				FunctionType::Kind::ABIDecode,
 				true,
 				StateMutability::Pure
-			)}
+			), nullptr}
 		});
 	case Kind::MetaType:
 	{
@@ -3929,22 +3931,22 @@ MemberList::MemberMap MagicType::nativeMembers(ASTNode const*) const
 			ContractDefinition const& contract = dynamic_cast<ContractType const&>(*m_typeArgument).contractDefinition();
 			if (contract.canBeDeployed())
 				return MemberList::MemberMap({
-					{"creationCode", TypeProvider::array(DataLocation::Memory)},
-					{"runtimeCode", TypeProvider::array(DataLocation::Memory)},
-					{"name", TypeProvider::stringMemory()},
+					{"creationCode", TypeProvider::array(DataLocation::Memory), nullptr},
+					{"runtimeCode", TypeProvider::array(DataLocation::Memory), nullptr},
+					{"name", TypeProvider::stringMemory(), nullptr},
 				});
 			else
 				return MemberList::MemberMap({
-					{"interfaceId", TypeProvider::fixedBytes(4)},
-					{"name", TypeProvider::stringMemory()},
+					{"interfaceId", TypeProvider::fixedBytes(4), nullptr},
+					{"name", TypeProvider::stringMemory(), nullptr},
 				});
 		}
 		else if (m_typeArgument->category() == Type::Category::Integer)
 		{
 			IntegerType const* integerTypePointer = dynamic_cast<IntegerType const*>(m_typeArgument);
 			return MemberList::MemberMap({
-				{"min", integerTypePointer},
-				{"max", integerTypePointer},
+				{"min", integerTypePointer, nullptr},
+				{"max", integerTypePointer, nullptr},
 			});
 		}
 	}

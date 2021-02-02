@@ -78,9 +78,9 @@ BOOST_AUTO_TEST_CASE(ufixed_types)
 BOOST_AUTO_TEST_CASE(storage_layout_simple)
 {
 	MemberList members(MemberList::MemberMap({
-		{string("first"), TypeProvider::fromElementaryTypeName("uint128")},
-		{string("second"), TypeProvider::fromElementaryTypeName("uint120")},
-		{string("wraps"), TypeProvider::fromElementaryTypeName("uint16")}
+		{string("first"), TypeProvider::fromElementaryTypeName("uint128"), nullptr},
+		{string("second"), TypeProvider::fromElementaryTypeName("uint120"), nullptr},
+		{string("wraps"), TypeProvider::fromElementaryTypeName("uint16"), nullptr}
 	}));
 	BOOST_REQUIRE_EQUAL(u256(2), members.storageSize());
 	BOOST_REQUIRE(members.memberStorageOffset("first") != nullptr);
@@ -94,16 +94,16 @@ BOOST_AUTO_TEST_CASE(storage_layout_simple)
 BOOST_AUTO_TEST_CASE(storage_layout_mapping)
 {
 	MemberList members(MemberList::MemberMap({
-		{string("first"), TypeProvider::fromElementaryTypeName("uint128")},
+		{string("first"), TypeProvider::fromElementaryTypeName("uint128"), nullptr},
 		{string("second"), TypeProvider::mapping(
 			TypeProvider::fromElementaryTypeName("uint8"),
 			TypeProvider::fromElementaryTypeName("uint8")
-		)},
-		{string("third"), TypeProvider::fromElementaryTypeName("uint16")},
+		), nullptr},
+		{string("third"), TypeProvider::fromElementaryTypeName("uint16"), nullptr},
 		{string("final"), TypeProvider::mapping(
 			TypeProvider::fromElementaryTypeName("uint8"),
 			TypeProvider::fromElementaryTypeName("uint8")
-		)},
+		), nullptr},
 	}));
 	BOOST_REQUIRE_EQUAL(u256(4), members.storageSize());
 	BOOST_REQUIRE(members.memberStorageOffset("first") != nullptr);
