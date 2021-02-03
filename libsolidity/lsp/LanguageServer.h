@@ -22,6 +22,7 @@
 
 #include <libsolidity/interface/CompilerStack.h>
 #include <libsolidity/interface/FileReader.h>
+#include <libsolidity/ast/AST.h>
 
 #include <json/value.h>
 
@@ -85,7 +86,27 @@ private:
 
 	std::vector<::lsp::DocumentHighlight> findAllReferences(
 		frontend::Declaration const* _declaration,
+		std::string const& _sourceIdentifierNam,
 		frontend::SourceUnit const& _sourceUnit
+	);
+
+	std::vector<::lsp::DocumentHighlight> findAllReferences(
+		frontend::Declaration const* _declaration,
+		frontend::SourceUnit const& _sourceUnit
+	)
+	{
+		if (_declaration)
+			return findAllReferences(_declaration, _declaration->name(), _sourceUnit);
+		else
+			return {};
+	}
+
+	void findAllReferences(
+		frontend::Declaration const* _declaration,
+		std::string const& _sourceIdentifierName,
+		frontend::SourceUnit const& _sourceUnit,
+		std::string const& _sourceUnitUri,
+		std::vector<::lsp::Location>& _output
 	);
 
 	void findAllReferences(
@@ -93,7 +114,13 @@ private:
 		frontend::SourceUnit const& _sourceUnit,
 		std::string const& _sourceUnitUri,
 		std::vector<::lsp::Location>& _output
-	);
+	)
+	{
+		if (!_declaration)
+			return;
+
+		findAllReferences(_declaration, _declaration->name(), _sourceUnit, _sourceUnitUri, _output);
+	}
 
 private:
 	/// In-memory filesystem for each opened file.

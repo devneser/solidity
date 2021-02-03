@@ -19,6 +19,7 @@
 #include <libsolidity/ast/ASTVisitor.h>
 #include <libsolidity/interface/ReadFile.h>
 #include <libsolidity/lsp/LanguageServer.h>
+#include <libsolidity/lsp/ReferenceCollector.h>
 
 #include <liblangutil/SourceReferenceExtractor.h>
 
@@ -66,101 +67,6 @@ public:
 			return true;
 		}
 		return false;
-	}
-};
-
-// TODO: maybe use SimpleASTVisitor here, if that would be a simple free-fuunction :)
-class ReferenceCollector: public frontend::ASTConstVisitor
-{
-private:
-	frontend::Declaration const& m_declaration;
-	std::vector<::lsp::DocumentHighlight> m_result;
-
-public:
-	explicit ReferenceCollector(frontend::Declaration const& _declaration):
-		m_declaration{_declaration}
-	{
-		fprintf(stderr, "finding refs: '%s', '%s'\n",
-				_declaration.name().c_str(),
-				_declaration.location().text().c_str());
-	}
-
-	std::vector<::lsp::DocumentHighlight> take() { return std::move(m_result); }
-
-	static std::vector<::lsp::DocumentHighlight> collect(frontend::Declaration const& _declaration, frontend::ASTNode const& _ast)
-	{
-		auto collector = ReferenceCollector(_declaration);
-		_ast.accept(collector);
-		return collector.take();
-	}
-
-	bool visit(Identifier const& _identifier) override
-	{
-		// TODO: also check for candidateDeclarations and overloadedDeclarations.
-		auto ref = _identifier.annotation().referencedDeclaration;
-		fprintf(stderr, "ReferenceCollector.visit(Identifier): %s (%s)\n",
-				_identifier.name().c_str(),
-				_identifier.annotation().referencedDeclaration
-					? typeid(*ref).name()
-					: "no type");
-
-		if (auto const declaration = _identifier.annotation().referencedDeclaration; declaration)
-			if (declaration == &m_declaration)
-				addReference(_identifier.location(), "(identifier)");
-
-		return visitNode(_identifier);
-	}
-
-	bool visit(MemberAccess const& _memberAccess) override
-	{
-		// TODO: MemberAccess.annotation.referencedDeclaration is always NULL, why?
-		// It should be EnumValue for an enum value.
-		fprintf(stderr, "ReferenceCollector.MemberAccess(%s): %s\n",
-				_memberAccess.annotation().referencedDeclaration
-					? _memberAccess.annotation().referencedDeclaration->name().c_str()
-					: "null",
-				_memberAccess.memberName().c_str());
-
-		if (_memberAccess.annotation().referencedDeclaration == &m_declaration)
-			addReference(_memberAccess.location(), "memberAccess("s + _memberAccess.memberName() + ")"s);
-
-		return visitNode(_memberAccess);
-	}
-
-	void addReference(SourceLocation const& _location, string msg = "")
-	{
-		auto const [startLine, startColumn] = _location.source->translatePositionToLineColumn(_location.start);
-		auto const [endLine, endColumn] = _location.source->translatePositionToLineColumn(_location.end);
-		auto const locationRange = ::lsp::Range{
-			{startLine, startColumn},
-			{endLine, endColumn}
-		};
-
-		fprintf(stderr, " -> found reference %s at %d:%d .. %d:%d\n",
-			msg.c_str(),
-			startLine, startColumn,
-			endLine, endColumn
-		);
-
-		auto highlight = ::lsp::DocumentHighlight{};
-		highlight.range = locationRange;
-		highlight.kind = ::lsp::DocumentHighlightKind::Text; // TODO: are you being read or written to?
-
-		m_result.emplace_back(highlight);
-	}
-
-	bool visitNode(ASTNode const& _node) override
-	{
-		fprintf(stderr, "ReferenceCollector.visitNode: %s\n", typeid(_node).name());
-		if (&_node == &m_declaration)
-		{
-			if (auto const* decl = dynamic_cast<Declaration const*>(&_node))
-				addReference(decl->nameLocation(), "(visitNode)");
-			else
-				addReference(_node.location(), "(visitNode)");
-		}
-
-		return true;
 	}
 };
 
@@ -642,24 +548,29 @@ optional<::lsp::Location> LanguageServer::declarationPosition(frontend::Declarat
 	return output;
 }
 
-std::vector<::lsp::DocumentHighlight> LanguageServer::findAllReferences(frontend::Declaration const* _declaration, SourceUnit const& _sourceUnit)
+std::vector<::lsp::DocumentHighlight> LanguageServer::findAllReferences(
+	frontend::Declaration const* _declaration,
+	string const& _sourceIdentifierName,
+	SourceUnit const& _sourceUnit
+)
 {
 	if (!_declaration)
 		return {};
 
 	// XXX the SourceUnit should be the root scope unless we're looking for simple variable identifier.
 	// TODO if vardecl, just use decl's scope (for lower overhead).
-	return ReferenceCollector::collect(*_declaration, _sourceUnit);
+	return ReferenceCollector::collect(*_declaration, _sourceUnit, _sourceIdentifierName);
 }
 
 void LanguageServer::findAllReferences(
 	frontend::Declaration const* _declaration,
+	string const& _sourceIdentifierName,
 	frontend::SourceUnit const& _sourceUnit,
 	std::string const& _sourceUnitUri,
 	std::vector<::lsp::Location>& _output
 )
 {
-	for (auto const& highlight: findAllReferences(_declaration, _sourceUnit))
+	for (auto const& highlight: findAllReferences(_declaration, _sourceIdentifierName, _sourceUnit))
 	{
 		auto location = ::lsp::Location{};
 		location.range = highlight.range;
@@ -764,7 +675,14 @@ vector<::lsp::DocumentHighlight> LanguageServer::semanticHighlight(::lsp::Docume
 	fprintf(stderr, "semanticHighlight: Source Node(%s): %s\n", typeid(*sourceNode).name(), sourceNode->location().text().c_str());
 
 	auto output = vector<::lsp::DocumentHighlight>{};
-	if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
+
+	// XXX we could make this if/else chain a SimpleASTVisitor
+	if (auto const importDirective = dynamic_cast<ImportDirective const*>(sourceNode); importDirective != nullptr)
+	{
+		// TODO
+		fprintf(stderr, "semanticHighlight: ImportDirective!\n");
+	}
+	else if (auto const sourceIdentifier = dynamic_cast<Identifier const*>(sourceNode); sourceIdentifier != nullptr)
 	{
 		auto const sourceName = _documentPosition.uri.substr(7); // strip "file://"
 		frontend::SourceUnit const& sourceUnit = m_compilerStack->ast(sourceName);
@@ -772,13 +690,13 @@ vector<::lsp::DocumentHighlight> LanguageServer::semanticHighlight(::lsp::Docume
 		vector<::lsp::DocumentHighlight> output;
 
 		if (sourceIdentifier->annotation().referencedDeclaration)
-			output += findAllReferences(sourceIdentifier->annotation().referencedDeclaration, sourceUnit);
+			output += findAllReferences(sourceIdentifier->annotation().referencedDeclaration, sourceIdentifier->name(), sourceUnit);
 
 		for (Declaration const* declaration: sourceIdentifier->annotation().candidateDeclarations)
-			output += findAllReferences(declaration, sourceUnit);
+			output += findAllReferences(declaration, sourceIdentifier->name(), sourceUnit);
 
 		for (Declaration const* declaration: sourceIdentifier->annotation().overloadedDeclarations)
-			output += findAllReferences(declaration, sourceUnit);
+			output += findAllReferences(declaration, sourceIdentifier->name(), sourceUnit);
 
 		return output;
 	}

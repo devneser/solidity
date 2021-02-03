@@ -1,6 +1,14 @@
+# MEETING Questions
+
+- ImportDirective does not traverse into SymbolAlias.
+	- change that to identify symbol aliases.
+	- to find all refs of that symbol alias
+	- to get direct correlation between alias use and alias def.
+
 # Milestone Before Merge
 
-- [ ] findAllReferences: include type names (not just vars / members)
+- [ ] remapping
+- [ ] findAllReferences: include *TYPE* names (not just vars / members)
 - [ ] findAllReferences: marks the whole `Enum.Value` instead of just `Value` keep or change?
 - [ ] AST: add location for the actual type names? (so that every type X can be highlighted, if X is non-trivial)
 
