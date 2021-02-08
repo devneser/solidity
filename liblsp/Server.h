@@ -137,18 +137,16 @@ public:
 
 	// {{{ Client-to-Server API
 	/// Invoked by the client to trigger server initialization.
-	virtual ServerId initialize(
-		// LSP: Maybe also client capabilities param?
-		std::string _rootUri,
-		std::map<std::string, std::string> _settings,
-		std::vector<WorkspaceFolder> _workspaceFolders
-	) = 0;
+	virtual ServerId initialize(std::string _rootUri, std::vector<WorkspaceFolder> _workspaceFolders) = 0;
 
 	/// Notification being sent when the client has finished initialization.
 	virtual void initialized() {}
 
 	/// The client requested a shutdown (without terminating). Only `Exit` event is valid after this.
 	virtual void shutdown() = 0;
+
+	using SettingsMaps = std::map<std::string, std::string>;
+	virtual void changeConfiguration(SettingsMaps const&) {};
 
 	/// The given document was opened.
 	///
@@ -237,13 +235,13 @@ protected:
 	void handle_initializeRequest(MessageId _id, Json::Value const& _args);
 	void handle_exit(MessageId _id, Json::Value const& _args);
 	void handle_shutdown(MessageId _id, Json::Value const& _args);
+	void handle_workspace_didChangeConfiguration(MessageId _id, Json::Value const& _args);
 	void handle_textDocument_didOpen(MessageId _id, Json::Value const& _args);
 	void handle_textDocument_didChange(MessageId _id, Json::Value const& _args);
 	void handle_textDocument_didClose(MessageId _id, Json::Value const& _args);
 	void handle_textDocument_definition(MessageId _id, Json::Value const& _args);
 	void handle_textDocument_highlight(MessageId _id, Json::Value const& _args);
 	void handle_textDocument_references(MessageId _id, Json::Value const& _args);
-
 	void invalidRequest(MessageId _id, std::string const& _methodName);
 
 private:

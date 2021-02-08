@@ -56,9 +56,10 @@ public:
 	//std::vector<boost::filesystem::path>& allowedDirectories() noexcept { return m_allowedDirectories; }
 
 	// Client-to-Server messages
-	::lsp::ServerId initialize(std::string _rootUri, std::map<std::string, std::string> _settings, std::vector<::lsp::WorkspaceFolder> _workspaceFolders) override;
+	::lsp::ServerId initialize(std::string _rootUri, std::vector<::lsp::WorkspaceFolder> _workspaceFolders) override;
 	void initialized() override;
 	void shutdown() override;
+	void changeConfiguration(SettingsMaps const&) override;
 	void documentOpened(std::string const& _uri, std::string _languageId, int _documentVersion, std::string _contents) override;
 	void documentContentUpdated(std::string const& _uri, std::optional<int> _documentVersion, std::string const& _fullContentChange) override;
 	void documentContentUpdated(std::string const& _uri, std::optional<int> _version, ::lsp::Range _range, std::string const& _text) override;
@@ -143,6 +144,9 @@ private:
 
 	/// Workspace root directory
 	boost::filesystem::path m_basePath;
+
+	/// Configured EVM version that is being used in compilations.
+	langutil::EVMVersion m_evmVersion = langutil::EVMVersion::berlin();
 };
 
 } // namespace solidity

@@ -170,21 +170,9 @@ void LanguageServer::shutdown()
 	log("LanguageServer: shutdown requested");
 }
 
-::lsp::ServerId LanguageServer::initialize(
-	string _rootUri,
-	map<string, string> _settings,
-	vector<::lsp::WorkspaceFolder> _workspaceFolders
-)
+::lsp::ServerId LanguageServer::initialize(string _rootUri, vector<::lsp::WorkspaceFolder> _workspaceFolders)
 {
-	(void) _settings; // TODO: user settings (such as EVM version)
-
-#if !defined(NDEBUG)
-	ostringstream msg;
-	msg << "LanguageServer: rootUri : " << _rootUri << endl;
-	for (auto const& workspace: _workspaceFolders)
-		msg << "                workspace folder: " << workspace.name << "; " << workspace.uri << endl;
-#endif
-
+	(void) _workspaceFolders; // a list of root directories (usually one).
 	if (boost::starts_with(_rootUri, "file:///"))
 	{
 		auto const fspath = boost::filesystem::path(_rootUri.substr(7));
@@ -192,11 +180,15 @@ void LanguageServer::shutdown()
 		m_allowedDirectories.push_back(fspath);
 	}
 
-#if !defined(NDEBUG)
-	log(msg.str());
-#endif
-
 	return {"solc", string(solidity::frontend::VersionNumber)};
+}
+
+void LanguageServer::changeConfiguration(SettingsMaps const& _settings)
+{
+	if (auto const i = _settings.find("evm"); i != _settings.end())
+		if (auto const evmVersionOpt = EVMVersion::fromString(i->second); evmVersionOpt.has_value())
+			m_evmVersion = evmVersionOpt.value();
+
 }
 
 void LanguageServer::initialized()
@@ -332,9 +324,12 @@ void LanguageServer::compile(::lsp::vfs::File const& _file)
 	OptimiserSettings settings = OptimiserSettings::standard(); // TODO: get from config
 	m_compilerStack->setOptimiserSettings(settings);
 	m_compilerStack->setParserErrorRecovery(false);
-	m_compilerStack->setEVMVersion(EVMVersion::constantinople()); // TODO: get from config
 	m_compilerStack->setRevertStringBehaviour(RevertStrings::Default); // TODO get from config
 	m_compilerStack->setSources(m_sourceCodes);
+
+	m_compilerStack->setEVMVersion(m_evmVersion);
+
+	fprintf(stderr, "compile: using evm %s\n", m_evmVersion.name().c_str());
 
 	m_compilerStack->compile();
 }

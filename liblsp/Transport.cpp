@@ -71,7 +71,7 @@ optional<Json::Value> JSONTransport::receive()
 	if (!errs.empty())
 		return nullopt; // JsonParseError
 
-	//traceMessage(jsonMessage, "Request");
+	traceMessage(jsonMessage, "Request");
 
 	return {jsonMessage};
 }

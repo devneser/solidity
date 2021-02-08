@@ -48,6 +48,7 @@ Server::Server(Transport& _client, std::function<void(std::string_view)> _logger
 		{"textDocument/definition", bind(&Server::handle_textDocument_definition, this, _1, _2)},
 		{"textDocument/documentHighlight", bind(&Server::handle_textDocument_highlight, this, _1, _2)},
 		{"textDocument/references", bind(&Server::handle_textDocument_references, this, _1, _2)},
+		{"workspace/didChangeConfiguration", bind(&Server::handle_workspace_didChangeConfiguration, this, _1, _2)},
 	},
 	m_logger{std::move(_logger)}
 {
@@ -141,12 +142,27 @@ void Server::handle_initializeRequest(MessageId _id, Json::Value const& _args)
 	}
 
 	// TODO: initializationOptions
-	map<string, string> settings{}; // should then be passed to initialize!
+	SettingsMaps settings{}; // should then be passed to initialize!
+	if (_args["initializationOptions"].isObject())
+	{
+		for (string const& memberName: _args["initializationOptions"].getMemberNames())
+		{
+			auto const memberValue = _args[memberName];
+
+			// Could be supported later to also support boolean or integer.
+			// For now just string should be sufficient.
+			settings[memberName] = memberValue.asString();
+		}
+	}
+	if (!settings.empty())
+		changeConfiguration(settings);
 
 	// TODO: ClientCapabilities
 	// ... Do we actually care? Not in the initial PR.
 
-	auto const info = initialize(move(rootUri), move(settings), move(workspaceFolders));
+	auto const info = initialize(move(rootUri), move(workspaceFolders));
+
+	changeConfiguration(settings);
 
 	// {{{ encoding
 	Json::Value replyArgs;
@@ -167,6 +183,24 @@ void Server::handle_initializeRequest(MessageId _id, Json::Value const& _args)
 
 	m_client.reply(_id, replyArgs);
 	// }}}
+}
+
+void Server::handle_workspace_didChangeConfiguration(MessageId, Json::Value const& _args)
+{
+	map<string, string> settings{}; // should then be passed to initialize!
+	if (_args["settings"].isObject())
+	{
+		for (string const& memberName: _args["settings"].getMemberNames())
+		{
+			auto const memberValue = _args[memberName];
+
+			// Could be supported later to also support boolean or integer.
+			// For now just string should be sufficient.
+			settings[memberName] = memberValue.asString();
+		}
+		if (!settings.empty())
+			changeConfiguration(settings);
+	}
 }
 
 void Server::handle_shutdown(MessageId /*_id*/, Json::Value const& /*_args*/)
