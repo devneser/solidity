@@ -136,8 +136,15 @@ bool DocStringAnalyser::visit(VariableDeclaration const& _variable)
 		return false;
 
 	if (CallableDeclaration const* baseFunction = resolveInheritDoc(_variable.annotation().baseFunctions, _variable, _variable.annotation()))
-		copyMissingTags({baseFunction}, _variable.annotation());
-	else if (_variable.annotation().docTags.empty())
+	{
+		if (baseFunction->returnParameters().size() == 1)
+			copyMissingTags({baseFunction}, _variable.annotation());
+	}
+	else if (
+		_variable.annotation().docTags.empty() &&
+		_variable.annotation().baseFunctions.size() > 0 &&
+		(*_variable.annotation().baseFunctions.begin())->returnParameters().size() == 1
+	)
 		copyMissingTags(_variable.annotation().baseFunctions, _variable.annotation());
 
 	return false;
