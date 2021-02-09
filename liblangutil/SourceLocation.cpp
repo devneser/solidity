@@ -34,10 +34,15 @@ SourceLocation const parseSourceLocation(std::string const& _input, std::string 
 
 	boost::algorithm::split(pos, _input, boost::is_any_of(":"));
 
+	// Index-value must be a valid index or the special value (size_t::max) to indicate that there
+	// is no source, which is done in at least ASTJsonConverter::sourceIndexFromLocation().
+	char* eptr = nullptr;
+	auto const indexValue = size_t{std::strtoul(pos[Index].c_str(), &eptr, 10)};
 	astAssert(
 		pos.size() == 3 &&
-		_maxIndex >= static_cast<size_t>(stoi(pos[Index])),
-		"'src'-field ill-formatted or src-index too high"
+		eptr && *eptr == '\0' &&
+		(_maxIndex >= indexValue || indexValue == std::numeric_limits<size_t>::max()),
+		"'src'-field ill-formatted or src-index too high: " + std::to_string(indexValue)
 	);
 
 	int start = stoi(pos[Start]);
